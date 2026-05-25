@@ -1,1 +1,72 @@
-# -DM8168-
+# TI ARM-DSP Dual-Core Real-Time Audio System (DM8168/OMAP-L138)
+
+本项目是一个基于德州仪器（Texas Instruments, TI）异构多核平台（如 DM8168、OMAP-L138、KeyStone 或 AM5728 等）的**工业级实时音频处理系统**。
+
+系统采用 **ARM (Linux) + DSP (SYS/BIOS RTOS)** 的经典双核协同架构，通过 TI **SysLink / IPC (Inter-Processor Communication)** 技术实现了物理共享内存的零拷贝音频流传输，并对标了专业演播室级的 DAT 音频采集与播放标准。
+
+## 🌟 核心特性
+
+*   **演播室级音质标准**：48000Hz 采样率、双声道 (Stereo)、16位小端 (S16_LE)，单物理周期时延为 20ms。
+*   **零拷贝双核通信**：基于 TI IPC (Notify & SharedRegion) 实现 ARM 与 DSP 之间的物理共享内存传输。
+*   **双向互锁流控队列**：Host (Linux ARM) 与 Server (SYS/BIOS DSP) 之间建立严格的绝对索引队列，彻底根除多核中断冲突导致的音频帧乱序。
+*   **防撕裂拼装机制 (Anti-tearing)**：针对 Linux ALSA 底层声卡驱动调度抖动，实现硬件分段数据的完整周期（960帧）强行拼装。
+*   **预充水机制 (Pre-charging)**：强制设定 ALSA 播放缓冲阈值（启动前积攒至少 3 个周期/60ms 数据），杜绝冷启动爆音和 Underrun。
+*   **优雅注销机制 (Graceful Shutdown)**：支持 ARM 与 DSP 之间的“四次挥手”双核闭环退出，安全释放信号量与底层 ALSA DMA 句柄，避免系统卡死。
+
+## 🏗️ 系统架构
+
+整个系统分为三大核心模块：
+
+1.  **Host (ARM / Linux)**：负责系统生命周期管理、ALSA 硬件声卡的实时录制与播放驱动、维护物理共享内存的索引与互斥量。
+2.  **DSP (SYS/BIOS RTOS)**：作为 Server 端运行，监听中断并执行音频算法核心逻辑（当前代码默认为直通拷贝 `memcpy`，可随时挂接滤波、降噪等 DSP 算法）。
+3.  **Shared Region (共享内存)**：在跨核物理内存（SR1）中开辟 150KB 空间，划分录制与播放两个 20 块（400ms）的深水位环形缓冲池。
+
+## 📂 目录结构
+
+*   `host/` - ARM 端运行的 Linux 应用程序源码。包含 `main_host.c` (引导与管理) 和 `App.c` (音频流控与 ALSA 驱动)。
+*   `dsp/` - DSP 端运行的 SYS/BIOS 固件源码。包含 `main_dsp.c` (OS引导)、`Server.c` (音频处理算法节点) 和 `Dsp.cfg` (系统与内存配置文件)。
+*   `shared/` - 双核共享头文件，定义通信握手指令、音频参数与 IPC 宏。
+*   `makefile` / `products.mak.example` - 项目构建脚本与开发环境配置模板。
+*   `run.sh` - 目标板部署运行脚本。
+
+## 🚀 编译与部署
+
+### 环境依赖
+本项目依赖于 TI 的跨平台开发套件：
+*   **SYS/BIOS** (TI-RTOS kernel)
+*   **XDCtools**
+*   **SysLink / IPC**
+*   **CGT ARM** (GCC交叉编译器，如 `arm-none-linux-gnueabi`)
+*   **CGT C6000** (DSP 编译器)
+
+### 编译步骤
+
+1.  **配置本地环境**：
+    将 `products.mak.example` 复制为 `products.mak`，并根据您本地机器上 TI SDK 的实际安装路径进行修改：
+    ```bash
+    cp products.mak.example products.mak
+    # 编辑 products.mak 文件，修改 DEPOT, BIOS_INSTALL_DIR 等路径
+    ```
+
+2.  **执行编译**：
+    在项目根目录下直接运行 `make` 命令：
+    ```bash
+    make
+    ```
+
+3.  **提取安装包**：
+    运行安装命令将生成部署目录 `install/`：
+    ```bash
+    make install
+    ```
+
+### 运行程序
+
+将生成的 `install/` 目录拷贝至目标开发板（ARM Linux系统）。
+
+1.  运行脚本加载并启动系统：
+    ```bash
+    ./run.sh
+    ```
+2.  控制台会提示 `>>> System running perfectly. Press [ENTER] to exit smoothly <<<`。此时音频系统正在实时运转。
+3.  按 `Enter` 键触发系统的优雅注销流程，双核安全解绑并释放资源。
