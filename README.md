@@ -1,4 +1,4 @@
-# TI ARM-DSP Dual-Core Real-Time Audio System (DM8168/OMAP-L138)
+# 基于DM8168的语音信号处理 (DM8168 Speech Signal Processing)
 
 本项目是一个基于德州仪器（Texas Instruments, TI）异构多核平台（如 DM8168、OMAP-L138、KeyStone 或 AM5728 等）的**工业级实时音频处理系统**。
 
