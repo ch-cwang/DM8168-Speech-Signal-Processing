@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 
 #define ALSA_PCM_NEW_HW_PARAMS_API
 #include <alsa/asoundlib.h>
@@ -48,6 +49,10 @@ typedef struct {
 
 static App_Module Module;
 static volatile int g_running = 1;
+
+static void sigint_handler(int sig) {
+    g_running = 0;
+}
 
 /* 全局化 ALSA 文件句柄，是为了在主线程要求退出时，能够强行中断底层硬件的读写阻塞 */
 static snd_pcm_t *handle_cap = NULL;
@@ -186,10 +191,18 @@ Int App_exec() {
     pthread_create(&tid_record, NULL, thread_record, NULL);
     pthread_create(&tid_play,   NULL, thread_play, NULL);
 
-    /* 阻塞主线程，保持程序运行 */
-    printf("\n>>> System running perfectly. Press [ENTER] to exit smoothly <<<\n");
-    getchar(); 
-    g_running = 0; /* 标志置 0，各子线程看到后会自动退出 while 循环 */
+    /* 注册信号捕捉 */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = sigint_handler;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+
+    /* 阻塞主线程，等待信号 */
+    printf("\n>>> System running perfectly. Press [Ctrl+C] to exit smoothly <<<\n");
+    while (g_running) {
+        pause(); 
+    }
     
     /* 【核心退场机制】：强制击穿底层的 DMA 搬运与硬件阻塞。
        若不 drop，ALSA API 会死死卡在系统内核空间，连 pthread_join 都无法将其结束。*/
