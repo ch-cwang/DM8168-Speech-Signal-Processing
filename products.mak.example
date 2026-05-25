@@ -5,6 +5,14 @@
 
 DEPOT = _your_depot_folder_
 
+# --- Host (ARM) ALSA Dependency ---
+# Point this to your ALSA installation dir or cross-compiler sysroot containing ALSA.
+ALSA_INSTALL_DIR        = /usr
+
+# --- DSP Hardware Platform Target ---
+# Examples: ti.platforms.evmTI816X:dsp, ti.platforms.evmOMAPL138:dsp
+DSP_PLATFORM            = ti.platforms.evmTI816X:dsp
+
 BIOS_INSTALL_DIR        = $(DEPOT)/_your_bios_install_
 CGT_ARM_PREFIX          = $(DEPOT)/_your_cs_arm_codegen_install_/bin/arm-none-linux-gnueabi-
 IPC_INSTALL_DIR         = $(DEPOT)/_your_ipc_install_

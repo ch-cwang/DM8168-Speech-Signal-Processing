@@ -63,7 +63,7 @@ configuro/linker.cmd: Dsp.cfg ../shared/config.bld
 	$(XDC_INSTALL_DIR)/xs --xdcpath="$(subst +,;,$(PKGPATH))" \
             xdc.tools.configuro -o configuro \
             -t ti.targets.elf.C674 -c $(CGT_C674_ELF_INSTALL_DIR) \
-            -p ti.platforms.evmTI816X:dsp -b ../shared/config.bld \
+            -p $(DSP_PLATFORM) -b ../shared/config.bld \
             -r release Dsp.cfg
 
 install:

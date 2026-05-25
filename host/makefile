@@ -101,9 +101,9 @@ CPPFLAGS = -D_REENTRANT -Dxdc_target_name__=GCArmv5T \
     -Dxdc_target_types__=gnu/targets/arm/std.h
 
 CFLAGS = -Wall -ffloat-store -fPIC -Wunused -Dfar= $(CCPROFILE_$(PROFILE)) \
-    -I. $(addprefix -I,$(subst +, ,$(PKGPATH))) -I/home/cw/alsa/include
+    -I. $(addprefix -I,$(subst +, ,$(PKGPATH))) -I$(ALSA_INSTALL_DIR)/include
 
-LDFLAGS = $(LDPROFILE_$(PROFILE)) -Wall -Wl,-Map=$@.map -L/home/cw/alsa/lib
+LDFLAGS = $(LDPROFILE_$(PROFILE)) -Wall -Wl,-Map=$@.map -L$(ALSA_INSTALL_DIR)/lib
 LDLIBS = -lpthread -lc -lrt -lasound
 
 CCPROFILE_debug = -ggdb -D DEBUG
