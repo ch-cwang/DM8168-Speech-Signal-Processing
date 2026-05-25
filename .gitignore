@@ -1,0 +1,38 @@
+# ==========================================
+# TI ARM-DSP Dual-Core Audio Project Git Ignore
+# ==========================================
+
+# --- 编译产物与目标板部署文件夹 ---
+/install/
+host/bin/
+dsp/bin/
+
+# --- TI XDCtools 自动生成的配置输出文件夹 ---
+# (configuro 是由 Dsp.cfg 编译时动态生成的，绝对不能提交到 Git)
+dsp/configuro/
+
+# --- 中间编译文件与二进制文件 ---
+*.o
+*.obj
+*.oe674
+*.xe674
+*.out
+*.dep
+*.d
+*.a
+*.lib
+
+# --- 本地编译环境配置 (推荐忽略 products.mak 并保留 .example 作为模板) ---
+products.mak
+
+# --- 常见 IDE 与编辑器临时文件 ---
+.project
+.cproject
+.ccsproject
+.settings/
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

@@ -1,0 +1,33 @@
+#
+#  ======== products.mak.example ========
+#  Copy this file to 'products.mak' and configure paths to your local TI SDK dependencies.
+#
+
+DEPOT = _your_depot_folder_
+
+BIOS_INSTALL_DIR        = $(DEPOT)/_your_bios_install_
+CGT_ARM_PREFIX          = $(DEPOT)/_your_cs_arm_codegen_install_/bin/arm-none-linux-gnueabi-
+IPC_INSTALL_DIR         = $(DEPOT)/_your_ipc_install_
+SYSLINK_INSTALL_DIR     = $(DEPOT)/_your_syslink_install_
+CGT_C674_ELF_INSTALL_DIR= $(DEPOT)/_your_ti_dsp_codegen_install_
+XDC_INSTALL_DIR         = $(DEPOT)/_your_xdctools_install_
+
+# Use this goal to print your product variables.
+.show:
+	@echo "BIOS_INSTALL_DIR         = $(BIOS_INSTALL_DIR)"
+	@echo "CGT_ARM_PREFIX           = $(CGT_ARM_PREFIX)"
+	@echo "IPC_INSTALL_DIR          = $(IPC_INSTALL_DIR)"
+	@echo "SYSLINK_INSTALL_DIR      = $(SYSLINK_INSTALL_DIR)"
+	@echo "CGT_C674_ELF_INSTALL_DIR = $(CGT_C674_ELF_INSTALL_DIR)"
+	@echo "XDC_INSTALL_DIR          = $(XDC_INSTALL_DIR)"
+
+# look for other products.mak file to override local settings
+ifneq (,$(wildcard $(EXBASE)/../products.mak))
+include $(EXBASE)/../products.mak
+else
+ifneq (,$(wildcard $(EXBASE)/../../products.mak))
+include $(EXBASE)/../../products.mak
+# fix SYSLINK_INSTALL_DIR because product uses $(CURDIR)
+SYSLINK_INSTALL_DIR = $(word 1,$(subst /examples, examples,$(CURDIR)))
+endif
+endif
