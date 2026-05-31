@@ -9,6 +9,7 @@
 *   **演播室级音质标准**：48000Hz 采样率、双声道 (Stereo)、16位小端 (S16_LE)，单物理周期时延为 20ms。
 *   **零拷贝双核通信**：基于 TI IPC (Notify & SharedRegion) 实现 ARM 与 DSP 之间的物理共享内存传输。
 *   **双向互锁流控队列**：Host (Linux ARM) 与 Server (SYS/BIOS DSP) 之间建立严格的绝对索引队列，彻底根除多核中断冲突导致的音频帧乱序。
+*   **IPC 防死锁重试 (Anti-Deadlock IPC Retry)**：针对底层硬件 IPC 队列满载抛出的发送失败异常，在核心数据流（录制/播放）的握手节点实现了带有 CPU 调度出让（微秒/Tick 级休眠）的轻量级非阻塞重试机制，彻底终结因信号量指令漏发导致的系统全局死锁。
 *   **防撕裂拼装机制 (Anti-tearing)**：针对 Linux ALSA 底层声卡驱动调度抖动，实现硬件分段数据的完整周期（960帧）强行拼装。
 *   **预充水机制 (Pre-charging)**：强制设定 ALSA 播放缓冲阈值（启动前积攒至少 3 个周期/60ms 数据），杜绝冷启动爆音和 Underrun。
 *   **优雅注销机制 (Graceful Shutdown)**：支持 ARM 与 DSP 之间的“四次挥手”双核闭环退出，安全释放信号量与底层 ALSA DMA 句柄，避免系统卡死。
@@ -75,5 +76,5 @@
     ```bash
     ./run.sh
     ```
-2.  控制台会提示 `>>> System running perfectly. Press [ENTER] to exit smoothly <<<`。此时音频系统正在实时运转。
-3.  按 `Enter` 键触发系统的优雅注销流程，双核安全解绑并释放资源。
+2.  控制台会提示 `>>> System running perfectly. Press [Ctrl+C] to exit smoothly <<<`。此时音频系统正在实时运转。
+3.  按 `Ctrl+C` 键触发系统的优雅注销流程，双核安全解绑并释放资源。
