@@ -42,9 +42,14 @@ extern "C" {
 #endif
 
 
-/* ti.ipc.Notify system configuration */
-#define SystemCfg_LineId        0
-#define SystemCfg_EventId       7
+/**
+ * @name IPC Notify System Configuration
+ * @brief Hardware line and event ID used for multi-core interrupts
+ * @{
+ */
+#define SystemCfg_LineId        0 /**< Hardware interrupt line ID (硬件中断线) */
+#define SystemCfg_EventId       7 /**< IPC Notify event ID (IPC 通知事件号) */
+/** @} */
 
 
 #if defined (__cplusplus)

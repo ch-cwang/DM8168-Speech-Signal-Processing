@@ -20,7 +20,10 @@
 
 #define QUEUESIZE 8
 
-/* 控制命令队列 (接收 DSP 发来的 ACK) */
+/**
+ * @brief Control command queue (Receives ACK from DSP)
+ *        (控制命令队列，接收 DSP 发来的 ACK)
+ */
 typedef struct {
   UInt32 queue[QUEUESIZE];
   UInt head;
@@ -29,7 +32,10 @@ typedef struct {
   sem_t semH;
 } Event_Queue;
 
-/* Host 核心全局上下文结构体 */
+/**
+ * @brief Host core global context structure
+ *        (Host 核心全局上下文结构体)
+ */
 typedef struct {
   Event_Queue eventQueue;
   UInt16 remoteProcId;
@@ -37,11 +43,11 @@ typedef struct {
   UInt32 eventId;
   Char *bufferPtr;
 
-  /* POSIX 信号量，用于线程间的流控同步 */
+  /* POSIX semaphores for flow control synchronization between threads (POSIX 信号量，用于线程间的流控同步) */
   sem_t empty_in;
   sem_t full_out;
 
-  /* 播放数据的绝对索引队列，跨线程传输必须依赖它防乱序 */
+  /* Absolute index queue for playback data. Essential for cross-thread anti-tearing (播放数据的绝对索引队列，跨线程传输必须依赖它防乱序) */
   UInt16 play_idx_queue[INDEX_Q_SIZE];
   UInt play_q_head;
   UInt play_q_tail;
@@ -52,8 +58,7 @@ static volatile int g_running = 1;
 
 
 
-/* 全局化 ALSA
- * 文件句柄，是为了在主线程要求退出时，能够强行中断底层硬件的读写阻塞 */
+/* Global ALSA file handles, used to forcefully break hardware read/write blocking when main thread requests exit (全局化 ALSA 句柄，用于强行打断底层阻塞) */
 static snd_pcm_t *handle_cap = NULL;
 static snd_pcm_t *handle_play = NULL;
 
@@ -63,13 +68,13 @@ static Void App_notifyCB(UInt16 procId, UInt16 lineId, UInt32 eventId, UArg arg,
 void *thread_record(void *arg);
 void *thread_play(void *arg);
 
-/* ========================================================================== */
-/* 工业级 ALSA 硬件与软件参数配置函数 */
-/* 参数 handle: 指向声卡句柄指针的指针，配置成功后通过它把声卡操作权交回给调用者
+/**
+ * @brief Industrial-grade ALSA hardware and software parameter configuration
+ *        (工业级 ALSA 硬件与软件参数配置函数)
+ * @param handle Pointer to PCM handle pointer (指向声卡句柄指针的指针)
+ * @param stream SND_PCM_STREAM_CAPTURE or SND_PCM_STREAM_PLAYBACK
+ * @return 0 on success, -1 on failure
  */
-/* 参数 stream: 枚举类型，表明当前是要求配置录音 (CAPTURE) 还是播放 (PLAYBACK)
- */
-/* ========================================================================== */
 int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) { //[cite: 2]
   snd_pcm_hw_params_t
       *params; // 声明硬件参数结构体指针，用于配置采样率、位深、物理通道等[cite:
@@ -262,9 +267,12 @@ Int App_exec() {
   return 0;
 }
 
-/* ========================================================================== */
-/* 音频录制线程 (生产者): 强壮的数据拼装引擎                                  */
-/* ========================================================================== */
+/**
+ * @brief Audio recording thread (Producer): Robust data assembly engine
+ *        (音频录制线程: 强壮的数据拼装引擎)
+ * @param arg Unused
+ * @return NULL
+ */
 void *thread_record(void *arg) {
   int tx_write_idx = 0;
   char *tx_base = Module.bufferPtr;
@@ -320,9 +328,12 @@ void *thread_record(void *arg) {
   return NULL;
 }
 
-/* ========================================================================== */
-/* 音频播放线程 (消费者): 同样严密的数据拼装输出                              */
-/* ========================================================================== */
+/**
+ * @brief Audio playback thread (Consumer): Strict data assembly output
+ *        (音频播放线程: 同样严密的数据拼装输出)
+ * @param arg Unused
+ * @return NULL
+ */
 void *thread_play(void *arg) {
   char *rx_base = Module.bufferPtr + HALF_BUFFER_SIZE;
 
@@ -377,9 +388,15 @@ void *thread_play(void *arg) {
   return NULL;
 }
 
-/* ========================================================================== */
-/* Host 端底层硬件中断回调                                                    */
-/* ========================================================================== */
+/**
+ * @brief Host-side low-level hardware interrupt callback
+ *        (Host 端底层硬件中断回调)
+ * @param procId Remote processor ID
+ * @param lineId Interrupt line ID
+ * @param eventId Interrupt event ID
+ * @param arg User argument (App_Module instance)
+ * @param payload 32-bit IPC payload
+ */
 Void App_notifyCB(UInt16 procId, UInt16 lineId, UInt32 eventId, UArg arg,
                   UInt32 payload) {
   App_Module *module = (App_Module *)arg;
@@ -418,9 +435,11 @@ static UInt32 App_waitForEvent(Event_Queue *eventQueue) {
   return event;
 }
 
-/* ========================================================================== */
-/* 整体资源清理：彻底的四次挥手                                               */
-/* ========================================================================== */
+/**
+ * @brief Global resource cleanup: Complete 4-way handshake teardown
+ *        (整体资源清理：彻底的四次挥手)
+ * @return 0 on success
+ */
 Int App_delete() {
   Int status = 0;
   UInt32 event = 0;

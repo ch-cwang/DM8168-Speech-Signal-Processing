@@ -73,8 +73,11 @@ Examples:\n\
 static String   Main_remoteProcName = NULL;
 
 
-/*
- *  ======== main ========
+/**
+ * @brief Host application entry point
+ * @param argc Argument count
+ * @param argv Argument vector
+ * @return Process exit status
  */
 Int main(Int argc, Char* argv[])
 {
@@ -106,8 +109,9 @@ leave:
 }
 
 
-/*
- *  ======== Main_main ========
+/**
+ * @brief Main application execution phase
+ * @return 0 on success
  */
 Int Main_main(Void)
 {
@@ -172,8 +176,11 @@ leave:
 }
 
 
-/*
- *  ======== Main_parseArgs ========
+/**
+ * @brief Command line argument parser
+ * @param argc Argument count
+ * @param argv Argument vector
+ * @return 0 on success, -1 on failure
  */
 Int Main_parseArgs(Int argc, Char *argv[])
 {

@@ -54,9 +54,12 @@
 /* private functions */
 static Void smain(UArg arg0, UArg arg1);
 
-/*
-*  ======== main ========
-*/
+/**
+ * @brief DSP application entry point (BIOS boot)
+ * @param argc Argument count
+ * @param argv Argument vector
+ * @return 0
+ */
 Int main(Int argc, Char* argv[])
 {
     Error_Block eb;
@@ -85,9 +88,11 @@ Int main(Int argc, Char* argv[])
     return (0);
 }
 
-/*
-*  ======== smain ========
-*/
+/**
+ * @brief DSP main task thread
+ * @param arg0 Unused
+ * @param arg1 Unused
+ */
 Void smain(UArg arg0, UArg arg1)
 {
     Int             status          = 0;

@@ -19,7 +19,10 @@
 
 #define QUEUESIZE 8
 
-/* 控制命令专用队列，用于接收 Host 发来的非业务类指令 (如 Shutdown) */
+/**
+ * @brief Control command queue (Receives non-business commands like Shutdown from Host)
+ *        (控制命令专用队列，用于接收 Host 发来的非业务类指令)
+ */
 typedef struct {
   UInt32 queue[QUEUESIZE];
   UInt head;
@@ -28,7 +31,10 @@ typedef struct {
   Semaphore_Handle semH;
 } Event_Queue;
 
-/* DSP 核心全局上下文结构体 */
+/**
+ * @brief DSP core global context structure
+ *        (DSP 核心全局上下文结构体)
+ */
 typedef struct {
   Event_Queue eventQueue;
   UInt16 remoteProcId;
@@ -70,9 +76,10 @@ static UInt32 Server_waitForEvent(Event_Queue *eventQueue);
 static Void Server_notifyCB(UInt16 procId, UInt16 lineId, UInt32 eventId,
                             UArg arg, UInt32 payload);
 
-/* ========================================================================== */
-/* 模块生命周期：供主机引导程序 (main_dsp.c) 在启动和退出时调用               */
-/* ========================================================================== */
+/**
+ * @brief Module lifecycle: Called by bootloader (main_dsp.c) during init/exit
+ *        (模块生命周期：供主机引导程序在启动和退出时调用)
+ */
 Void Server_init(Void) {
   if (Module_curInit++ != 0)
     return;
@@ -84,9 +91,12 @@ Void Server_exit(Void) {
     return;
 }
 
-/* ========================================================================== */
-/* DSP 资源创建与初始化                                                       */
-/* ========================================================================== */
+/**
+ * @brief DSP resource creation and initialization
+ *        (DSP 资源创建与初始化)
+ * @param remoteProcId Host processor ID
+ * @return 0 on success
+ */
 Int Server_create(UInt16 remoteProcId) {
   Int status = 0;
   Semaphore_Params semParams;
@@ -134,9 +144,11 @@ Int Server_create(UInt16 remoteProcId) {
   return 0;
 }
 
-/* ========================================================================== */
-/* DSP 音频处理主循环 (跑在 SYS/BIOS 的 Task 中)                              */
-/* ========================================================================== */
+/**
+ * @brief DSP audio processing main loop (Runs in SYS/BIOS Task)
+ *        (DSP 音频处理主循环，跑在 SYS/BIOS 的 Task 中)
+ * @return 0 on exit
+ */
 Int Server_exec() {
   SharedRegion_SRPtr sharedBufferPtr = 0;
   UInt32 event;
@@ -203,9 +215,15 @@ Int Server_exec() {
   return 0;
 }
 
-/* ========================================================================== */
-/* 底层硬件中断回调函数 (极其严苛的执行环境，绝不能包含任何阻塞逻辑) */
-/* ========================================================================== */
+/**
+ * @brief Low-level hardware interrupt callback (Strict execution context, no blocking allowed!)
+ *        (底层硬件中断回调函数，极其严苛的执行环境，绝不能包含任何阻塞逻辑)
+ * @param procId Remote processor ID
+ * @param lineId Interrupt line ID
+ * @param eventId Interrupt event ID
+ * @param arg User argument (Server_Module instance)
+ * @param payload 32-bit IPC payload
+ */
 Void Server_notifyCB(UInt16 procId, UInt16 lineId, UInt32 eventId, UArg arg,
                      UInt32 payload) {
   Server_Module *module = (Server_Module *)arg;
@@ -260,9 +278,11 @@ static UInt32 Server_waitForEvent(Event_Queue *eventQueue) {
   return event;
 }
 
-/* ========================================================================== */
-/* DSP 资源销毁与回收 (主任务退出循环后才会执行到这里)                        */
-/* ========================================================================== */
+/**
+ * @brief DSP resource destruction and reclamation (Executed after main loop exits)
+ *        (DSP 资源销毁与回收，主任务退出循环后才会执行到这里)
+ * @return 0 on success
+ */
 Int Server_delete() {
   Int status = 0;
   UInt32 event;
