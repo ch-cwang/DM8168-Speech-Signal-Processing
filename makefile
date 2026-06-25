@@ -66,10 +66,12 @@ install:
 	@$(ECHO) "#"
 	@$(ECHO) "# Making $@ ..."
 	@$(MKDIR) $(EXEC_DIR)/debug
-	$(INSTALL) run.sh $(EXEC_DIR)/debug
+	tr -d '\r' < run.sh > $(EXEC_DIR)/debug/run.sh
+	chmod +x $(EXEC_DIR)/debug/run.sh
 	$(CP) $(SLAVELOADER_DEBUG) $(EXEC_DIR)/debug/slaveloader
 	@$(MKDIR) $(EXEC_DIR)/release
-	$(INSTALL) run.sh $(EXEC_DIR)/release
+	tr -d '\r' < run.sh > $(EXEC_DIR)/release/run.sh
+	chmod +x $(EXEC_DIR)/release/run.sh
 	$(CP) $(SLAVELOADER) $(EXEC_DIR)/release/slaveloader
 	$(MAKE) -C host EXEC_DIR=$(EXEC_DIR) install
 	$(MAKE) -C dsp EXEC_DIR=$(EXEC_DIR) install

@@ -109,7 +109,7 @@ LDLIBS = -l $(CGTOOLS)/lib/rts6740_elf.lib
 
 CCPROFILE_debug = -D_DEBUG_=1 --symdebug:dwarf
 CCPROFILE_release = -O2
-COMPILER_OPTS = $(shell cat configuro/compiler.opt)
+COMPILER_OPTS = -@configuro/compiler.opt
 
 #  ======== standard macros ========
 ifneq (,$(wildcard $(XDC_INSTALL_DIR)/bin/echo.exe))

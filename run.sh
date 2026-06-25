@@ -37,3 +37,4 @@ set -x
 ./app_host DSP
 
 ./slaveloader shutdown DSP
+echo "Shutdown complete."

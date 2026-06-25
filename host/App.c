@@ -1,3 +1,4 @@
+
 #include <errno.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -8,10 +9,9 @@
 
 #define ALSA_PCM_NEW_HW_PARAMS_API
 #include <alsa/asoundlib.h>
-
+#include <ti/syslink/Std.h>
 #include <ti/ipc/Notify.h>
 #include <ti/ipc/SharedRegion.h>
-#include <ti/syslink/Std.h>
 #include <ti/syslink/utils/Memory.h>
 
 #include "../shared/AppCommon.h"
@@ -261,6 +261,12 @@ Int App_exec() {
   pthread_join(tid_record, NULL);
   pthread_join(tid_play, NULL);
 
+  /* 线程安全退出后，统一释放声卡资源 */
+  if (handle_cap)
+    snd_pcm_close(handle_cap);
+  if (handle_play)
+    snd_pcm_close(handle_play);
+
   return 0;
 }
 
@@ -319,10 +325,6 @@ void *thread_record(void *arg) {
     tx_write_idx = (tx_write_idx + 1) % BLOCK_COUNT;
   }
 
-  if (handle_cap) {
-    snd_pcm_drop(handle_cap);
-    snd_pcm_close(handle_cap);
-  }
   return NULL;
 }
 
@@ -380,10 +382,6 @@ void *thread_play(void *arg) {
     }
   }
 
-  if (handle_play) {
-    snd_pcm_drop(handle_play);
-    snd_pcm_close(handle_play);
-  }
   return NULL;
 }
 

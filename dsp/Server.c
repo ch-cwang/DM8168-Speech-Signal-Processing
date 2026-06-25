@@ -1,18 +1,17 @@
 #define Registry_CURDESC Test__Desc
 #define MODULE_NAME "Server"
 
+#include <xdc/std.h>
 #include <string.h>
 #include <ti/ipc/Notify.h>
 #include <ti/ipc/SharedRegion.h>
 #include <ti/sysbios/BIOS.h>
-#include <ti/sysbios/hal/Cache.h> /* 必须引入此头文件以操作 L1/L2 硬件缓存 */
 #include <ti/sysbios/knl/Semaphore.h>
 #include <ti/sysbios/knl/Task.h>
 #include <xdc/runtime/Assert.h>
 #include <xdc/runtime/Diags.h>
 #include <xdc/runtime/Log.h>
 #include <xdc/runtime/Registry.h>
-#include <xdc/std.h>
 
 #include "../shared/AppCommon.h"
 #include "../shared/SystemCfg.h"
@@ -119,7 +118,7 @@ Int Server_create(UInt16 remoteProcId) {
   for (i = 0; i < BLOCK_COUNT; i++) {
     Module.rx_empty_idx_queue[i] = i;
   }
-  Module.rx_q_head = BLOCK_COUNT;
+  Module.rx_q_head = BLOCK_COUNT % INDEX_Q_SIZE;
   Module.rx_q_tail = 0;
 
   /* 注册 IPC 中断回调，并不断尝试与 Host 握手，直到 Host 响应 NOP */
@@ -163,8 +162,7 @@ Int Server_exec() {
   while (g_running) {
     /* 1. 等待 Host 发来装满音频的录音块 */
     Semaphore_pend(Module.full_in, BIOS_WAIT_FOREVER);
-    if (!g_running)
-      break; /* 被关机信号踹醒，立即跳出 */
+    if (!g_running) break;
 
     /* 提取真实数据所在的绝对索引和内存指针 */
     UInt16 active_rx_idx = Module.tx_ready_idx_queue[Module.tx_q_tail];
@@ -173,8 +171,7 @@ Int Server_exec() {
 
     /* 2. 等待播放区腾出空闲的数据块 */
     Semaphore_pend(Module.empty_out, BIOS_WAIT_FOREVER);
-    if (!g_running)
-      break;
+    if (!g_running) break;
 
     /* 提取空闲区的绝对索引和内存指针 */
     UInt16 active_tx_idx = Module.rx_empty_idx_queue[Module.rx_q_tail];
@@ -186,16 +183,16 @@ Int Server_exec() {
     /* ============================== */
 
     /* 3. 双向触发底层硬件中断，通知 Host 认领数据 */
-    /* 告诉 Host：这块录音我已经吸干了，你拿去重新录吧 */
-    /* 增加重试与 OS Tick 休眠机制，防止底层 IPC 队列满时死锁霸占 DSP 造成系统瘫痪 */
+    /* 告诉 Host：这块录音我已经吸干了，你拿去重新录制 */
+    /* 增加重试和 OS Tick 休眠机制，防止底层 IPC 队列满时死锁霸占 DSP 造成系统瘫痪 */
     while (Notify_sendEvent(Module.remoteProcId, Module.lineId, Module.eventId,
                             (CMD_SERVER_TO_APP_RECORD_DONE << 16) | active_rx_idx,
                             TRUE) < 0) {
       Task_sleep(1);
     }
 
-    /* 告诉 Host：这块播放我已经算好了，你赶紧拿去播吧 */
-    /* 增加重试与 OS Tick 休眠机制，防止底层 IPC 队列满时死锁霸占 DSP 造成系统瘫痪 */
+    /* 告诉 Host：这块播放我已经算好了，你赶紧拿去播放 */
+    /* 增加重试和 OS Tick 休眠机制，防止底层 IPC 队列满时死锁霸占 DSP 造成系统瘫痪 */
     while (Notify_sendEvent(Module.remoteProcId, Module.lineId, Module.eventId,
                             (CMD_SERVER_TO_APP_DATA_READY << 16) | active_tx_idx,
                             TRUE) < 0) {
