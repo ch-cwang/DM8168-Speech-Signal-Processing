@@ -76,5 +76,5 @@
     ```bash
     ./run.sh
     ```
-2.  控制台会提示 `>>> System running perfectly. Press [Ctrl+C] to exit smoothly <<<`。此时音频系统正在实时运转。
-3.  按 `Ctrl+C` 键触发系统的优雅注销流程，双核安全解绑并释放资源。
+2.  控制台会提示 `>>> System running perfectly. Press [ENTER] to exit smoothly <<<`。此时音频系统正在实时运转。
+3.  按 `Enter` (回车) 键触发系统的优雅注销流程，系统通过主线程同步回收避免底层驱动被异步信号中断干扰，实现双核安全解绑并释放资源。
