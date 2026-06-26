@@ -93,8 +93,10 @@
 ```
 
 此外，您可以参考以下文档了解详细的技术背景与验证方案：
-*   [Audio Test Plan (`tests/audio_test_plan.md`)](tests/audio_test_plan.md)：完整的软硬件测试方案与验收标准。
+*   [Requirements Analysis Document (`docs/requirements.md`)](docs/requirements.md)：系统立项背景与核心功能/非功能性需求列表。
 *   [System Design Document (`docs/system_design.md`)](docs/system_design.md)：关于架构设计、IPC 流控、物理内存分配与抗撕裂机制的深度技术剖析文档。
+*   [Audio Test Plan (`tests/audio_test_plan.md`)](tests/audio_test_plan.md)：完整的软硬件自动化压力测试步骤。
+*   [Software Test Report (`docs/software_test_report.md`)](docs/software_test_report.md)：详细的 4 大用例极端环境压力测试验收报告。
 
 该测试集包含：
 1. **基础连通性**：5秒内的无丢帧收发。
