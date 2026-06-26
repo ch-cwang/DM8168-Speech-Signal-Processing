@@ -37,7 +37,7 @@
 *   `host/` - ARM 端运行的 Linux 应用程序源码。包含 `main_host.c` (引导与管理) 和 `App.c` (音频流控与 ALSA 驱动)。
 *   `dsp/` - DSP 端运行的 SYS/BIOS 固件源码。包含 `main_dsp.c` (OS引导)、`Server.c` (音频处理算法节点) 和 `Dsp.cfg` (系统与内存配置文件)。
 *   `shared/` - 双核共享头文件，定义通信握手指令、音频参数与 IPC 宏。
-*   `tests/` - 自动化测试脚本目录，包含 `run_tests.sh` 压力测试工具。
+*   `tests/` - 自动化测试脚本目录，包含 `test_case1_basic.sh` 等独立测试脚本。
 *   `makefile` / `products.mak.example` - 项目构建脚本与开发环境配置模板。
 *   `run.sh` - 目标板部署运行脚本。
 
@@ -81,11 +81,13 @@
 ## 🧪 自动化压力测试
 
 本项目自带严密的防撕裂和防死锁机制测试脚本。
-在 `install/` 目录下（或者已挂载板卡的目录），直接运行自动化测试程序：
+在 `install/` 目录下（或者已挂载板卡的目录），直接运行您想测试的脚本：
 ```bash
-../tests/run_tests.sh
+../tests/test_case1_basic.sh
+../tests/test_case2_stress.sh
+../tests/test_case3_ipc_lifecycle.sh
 ```
-该测试包含：
+该测试集包含：
 1. **基础连通性**：5秒内的无丢帧收发。
 2. **高负载抗撕裂测试**：榨干 ARM CPU 时的音频拼装稳定性。
 3. **频繁启停抗死锁测试**：快速拉起并强制注销 10 次，验证 IPC 释放的安全闭环。
