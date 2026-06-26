@@ -14,10 +14,10 @@ echo " [用例 2] CPU 极端高负载抗撕裂测试 (运行 10 秒) "
 echo "======================================================"
 echo "请先开启旁路抓包 (setup_alsa_snoop.sh on)，并从外部持续输入正弦波。"
 
-# 启动 2 个高强度无意义计算后台进程，榨干 ARM 端 CPU
-dd if=/dev/urandom of=/dev/null bs=1M 2>/dev/null &
+# 启动 2 个死循环后台进程，100% 榨干 ARM 端 CPU (纯逻辑死循环，没有任何 IO 阻塞，是最狠的 CPU 杀手)
+while true; do :; done &
 LOAD_PID1=$!
-dd if=/dev/urandom of=/dev/null bs=1M 2>/dev/null &
+while true; do :; done &
 LOAD_PID2=$!
 
 echo "负载已施加。测试结束后，请将当前目录下的 ./dsp_playback.raw 拷贝至电脑进行检视..."
