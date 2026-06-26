@@ -9,9 +9,8 @@
 ### 1. 硬件准备
 
 *   **DM8168 / OMAP-L138 开发板**：正常运行 Linux 及装载 SysLink/IPC 驱动。
-*   **外部纯音音源 (手机/PC)**：使用手机或电脑浏览器打开 [Online Tone Generator](https://www.szynalski.com/tone-generator/)。
-*   **音频分析端 (PC)**：安装开源音频编辑软件 [Audacity](https://www.audacityteam.org/) 的电脑。
-*   **音频线**：两根 3.5mm 公对公 Aux 对录线（一根接手机到开发板 Line In，一根接开发板 Line Out 到 PC 麦克风接口）。
+*   **外部纯音音源及分析端 (单台 PC 即可)**：使用电脑浏览器打开 [Online Tone Generator](https://www.szynalski.com/tone-generator/)，并安装开源音频编辑软件 [Audacity](https://www.audacityteam.org/)。
+*   **音频线**：两根 3.5mm 公对公 Aux 对录线（一根连接 **PC 的耳机孔/Line Out** 到开发板的 **Line In**，另一根连接开发板的 **Line Out** 到 **PC 的麦克风/Line In 接口**）。
 
 ### 2. 软件准备
 
@@ -28,10 +27,10 @@
 **目的**：验证 ALSA 的 48kHz, 16bit, Stereo 硬件配置是否成功，以及 DSP 的内存直通拷贝（`memcpy`）是否按预期工作。
 **步骤**：
 
-1. 使用音频线将**手机耳机孔**连接至开发板的 **Line In**，将开发板的 **Line Out** 连接至 **PC 麦克风接口**。
+1. 使用第一根音频线将 **PC 的耳机输出孔**连接至开发板的 **Line In**。使用第二根音频线将开发板的 **Line Out** 连接至 **PC 的麦克风输入孔**。
 2. 运行系统的 `./run.sh` 启动 DSP 和 ARM 线程。
-3. 在手机端通过 Online Tone Generator 持续播放 1kHz (或 440Hz) 的标准正弦波。
-4. 在 PC 端打开 Audacity，点击录音按钮录制 5-10 秒的输出信号。停止后使用鼠标滚轮将波形**放大至毫秒级别**。
+3. 在 PC 浏览器中通过 Online Tone Generator 持续播放 1kHz 的标准正弦波。
+4. 在 PC 端同时打开 Audacity，选择录音设备为“麦克风”，点击录音按钮录制 5-10 秒。停止后使用鼠标滚轮将波形**放大至毫秒级别**。
    **验收标准**：
 - [x] 系统无任何报错，无 Underrun/Overrun 提示。
 - [x] 听感上正弦波纯净，无“哒哒”声或“噼啪”爆音杂音。
@@ -45,7 +44,7 @@
 **目的**：验证代码中精心设计的 ALSA 分段组装逻辑（`frames_left` 机制），确保即使 Linux 系统调度产生长达数十毫秒的卡顿，依然不会将残缺的缓冲帧发给 DSP 引发音频错乱。
 **步骤**：
 
-1. 在手机持续播放正弦波且 PC 端 Audacity 开始录制的前提下，启动 `./run.sh` 使音频流运转。
+1. 在 PC 端持续播放正弦波且 Audacity 开始录制的前提下，启动 `./run.sh` 使音频流运转。
 2. 运行高负载测试脚本，例如执行 `dd if=/dev/urandom of=/dev/null` 生成 2-4 个吃满 CPU 资源的后台进程。
 3. 录制 10 秒后停止，在 Audacity 中放大观察这 10 秒内的高压输出波形。
    **验收标准**：

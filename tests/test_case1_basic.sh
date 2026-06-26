@@ -12,8 +12,8 @@ fi
 echo "======================================================"
 echo " [用例 1] 基础音频连通性测试 (运行 5 秒) "
 echo "======================================================"
-echo "请用手机打开 Online Tone Generator 播放 1kHz 纯正弦波输入 Line In，"
-echo "并开启 PC 端 Audacity 准备录制 Line Out 输出。"
+echo "请用 PC 打开 Online Tone Generator 播放 1kHz 正弦波输入板子，"
+echo "并在同一台 PC 开启 Audacity 准备录制板子的输出。"
 
 # 使用括号和 sleep，在 5 秒后通过管道向 ./run.sh (及其启动的 app_host) 输送一个回车符 (Enter) 触发优雅退出
 (sleep 5; echo "") | ./run.sh
