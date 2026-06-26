@@ -9,9 +9,31 @@
 
 本系统采用非对称多处理 (AMP, Asymmetric Multiprocessing) 架构，通过异构核心的物理级解耦，实现“调度管理”与“实时计算”的完美分离。
 
-> **【架构图占位符】**
-> *在此处插入：系统顶层架构图 (High-Level Architecture Diagram)*
-> *(建议包含：Linux OS, ALSA Driver, SysLink IPC, BIOS OS, Audio Codec 的层级关系)*
+```mermaid
+graph TD
+    subgraph Host ["ARM Cortex-A8 (Linux OS)"]
+        App["Host Application (app)"]
+        ALSA["ALSA Audio Subsystem"]
+    end
+    
+    subgraph SysLink ["SysLink IPC"]
+        SR["SharedRegion_1 (153.6KB)"]
+        Notify["Hardware Mailbox Notify"]
+    end
+    
+    subgraph Server ["DSP C674x (SYS/BIOS)"]
+        Task["DSP Audio Processing Task"]
+    end
+    
+    Codec["Hardware Audio Codec (TLV320AIC3X)"]
+    
+    Codec <-->|I2S/DMA| ALSA
+    ALSA <-->|readi/writei| App
+    App <-->|Zero-Copy| SR
+    App <-->|Interrupt| Notify
+    Notify <-->|Interrupt| Task
+    SR <-->|Zero-Copy| Task
+```
 
 *   **Host 端 (ARM Cortex-A8)**
     *   **职责**：运行标准 Linux 操作系统。全权接管 ALSA 音频子系统的复杂驱动交互、网络协议栈、文件 I/O 以及外部硬件中断捕获。
@@ -28,9 +50,26 @@
 
 为了消除传统双核通信中的 `memcpy` 性能损耗，本系统采用**零拷贝 (Zero-Copy)** 物理共享内存池设计。
 
-> **【内存分布图占位符】**
-> *在此处插入：物理共享内存池布局图 (Shared Memory Layout Diagram)*
-> *(建议包含：`SHARED_REGION_1` 的起始地址，TX/RX 分区，以及每个 Block 3840 字节的阵列示意)*
+```mermaid
+graph TD
+    subgraph SHARED_REGION_1 ["SHARED_REGION_1 (总计 153.6 KB)"]
+        direction LR
+        subgraph TX_Region ["TX 录音区: 76.8 KB, 偏移量 0x00000"]
+            TX0["Block 0: 3840 Bytes"]
+            TX1["Block 1: 3840 Bytes"]
+            TXN["..."]
+            TX19["Block 19: 3840 Bytes"]
+            TX0 --- TX1 --- TXN --- TX19
+        end
+        subgraph RX_Region ["RX 播放区: 76.8 KB, 偏移量 0x12C00"]
+            RX0["Block 0: 3840 Bytes"]
+            RX1["Block 1: 3840 Bytes"]
+            RXN["..."]
+            RX19["Block 19: 3840 Bytes"]
+            RX0 --- RX1 --- RXN --- RX19
+        end
+    end
+```
 
 ### 2.1 音频规格与缓存深度计算
 *   **采样规格**: 48,000 Hz, Signed 16-bit, Stereo (4 Bytes/Frame)。
@@ -52,9 +91,28 @@ Host (Linux) 操作的是带 MMU 映射的虚拟地址，而 DSP 操作的是物
 
 Host 端设计了三个高并发线程，依靠互斥信号量 (`sem_t`) 与 IPC 信令实现无锁 (Lock-free) 的环形队列调度。
 
-> **【线程时序图占位符】**
-> *在此处插入：三线程与 DSP 握手时序图 (Thread Sequence Diagram)*
-> *(建议包含：Main Thread 的管控流程，Record Thread/Play Thread 围绕 `empty_in`/`full_out` 信号量的工作周期)*
+```mermaid
+sequenceDiagram
+    participant Main as ARM Main Thread
+    participant Rec as ARM Record Thread
+    participant Play as ARM Play Thread
+    participant DSP as DSP Audio Task
+
+    Main->>DSP: 传输共享内存高低 16 位指针 (SPTR)
+    Note over Main,DSP: 开始多线程流控死循环
+    
+    loop 核心数据流转 (20ms 节拍)
+        Rec->>Rec: snd_pcm_readi 读取 960 帧
+        Rec->>DSP: 触发 Notify (CMD_DATA_READY + Index)
+        Note over DSP: 物理内存直接读取运算 (Zero-Copy)
+        DSP->>DSP: 将结果写入 RX 区对应的 Index
+        DSP->>Play: 触发 Notify (CMD_DATA_READY + Index)
+        DSP->>Rec: 触发 Notify (CMD_RECORD_DONE + Index)
+        Play->>Play: sem_wait 被唤醒，取出 Index
+        Play->>Play: snd_pcm_writei 写入底层 DAC
+        Play->>DSP: 触发 Notify (CMD_PLAY_DONE + Index)
+    end
+```
 
 ### 3.1 Host 端三线程模型
 1.  **Main 线程 (控制面)**：负责初始化 ALSA 参数、申请共享内存、向 DSP 发送初始化地址，以及捕获退出信号执行清理。
@@ -81,9 +139,25 @@ TI Notify Payload 只有 32-bit，为最大化信息量，系统将其拆分为�
 
 这是整个系统能够在高达 100% CPU 负载下依然不爆音、不撕裂的技术核心。
 
-> **【流控状态机图占位符】**
-> *在此处插入：抗撕裂缓存拼装状态图 (Anti-tearing Buffer Assembly State Machine)*
-> *(建议包含：`frames_left` 变量在受到系统抖动被截断时的重试游标图)*
+```mermaid
+stateDiagram-v2
+    [*] --> Start_Read: 设定 frames_left = 960
+    
+    Start_Read --> Read_Call: 调用 snd_pcm_readi(offset)
+    
+    Read_Call --> Success: 返回帧数 rc == frames_left
+    Read_Call --> Partial: 返回残块 0 < rc < frames_left
+    Read_Call --> Error: 返回 -EPIPE 等错误
+    
+    Error --> Recover: 调用 snd_pcm_recover 修复内核指针
+    Recover --> Read_Call: 重新尝试读取当前未完帧
+    
+    Partial --> Update_Offset: frames_left -= rc<br>offset += rc * 4
+    Update_Offset --> Read_Call: 继续向内核讨要剩余残缺帧
+    
+    Success --> Complete: 拼装 960 帧满血完成
+    Complete --> [*]: 发送给 DSP
+```
 
 ### 4.1 抗撕裂帧拼装机制 (Offset Assembly)
 在高压环境下，ALSA 中断可能被延迟，导致单次 `snd_pcm_readi` 或 `writei` 无法足额获取/写入预定的 `960` 帧，从而引发 `-EPIPE` (Underrun/Overrun) 或返回截断的残块。
@@ -118,9 +192,25 @@ snd_pcm_sw_params_set_avail_min(handle, swparams, frames);
 
 嵌入式系统对资源泄漏极度敏感。如果进程异常退出导致 DSP 侧未能释放，或 ALSA 句柄未关闭，下一次启动必将面临硬件死锁。
 
-> **【注销流程图占位符】**
-> *在此处插入：四次挥手安全退出流程图 (Graceful Teardown Flowchart)*
-> *(建议包含：`snd_pcm_drop` 打破阻塞 -> `sem_post` 唤醒线程 -> `SHUTDOWN` 握手的全过程)*
+```mermaid
+sequenceDiagram
+    participant OS as Linux (Ctrl+C / Enter)
+    participant Main as ARM Main Thread
+    participant Threads as ARM Record/Play Threads
+    participant DSP as DSP Server Thread
+
+    OS->>Main: 触发注销信号 (g_running = 0)
+    Main->>Threads: snd_pcm_drop() 强行击穿底层 IO 阻塞
+    Main->>Threads: sem_post() 解除幽灵锁死
+    Threads-->>Main: 子线程脱离循环安全退出 (pthread_join)
+    
+    Main->>DSP: [挥手 1] 发送 APP_CMD_SHUTDOWN
+    Note over DSP: 收到指令，跳出内部算法死循环
+    DSP-->>Main: [挥手 2] 发送 APP_CMD_SHUTDOWN_ACK
+    
+    Main->>Main: [挥手 3/4] 注销 Notify 回调，释放共享内存池
+    Note over Main,OS: 进程安全终结，无任何僵尸资源泄露
+```
 
 **防御性析构流程 (`App_delete`)**：
 1. **击穿内核阻塞**：调用 `snd_pcm_drop(handle)`，将卡在 Linux 内核态苦等 DMA 数据的音频线程瞬间唤醒。
