@@ -12,7 +12,7 @@ fi
 echo "======================================================"
 echo " [用例 2] CPU 极端高负载抗撕裂测试 (运行 10 秒) "
 echo "======================================================"
-echo "正在创建极限 CPU 负载进程 (dd /dev/urandom)..."
+echo "请用手机持续播放 1kHz 正弦波，并在 PC 端用 Audacity 开始录音。"
 
 # 启动 2 个高强度无意义计算后台进程，榨干 ARM 端 CPU
 dd if=/dev/urandom of=/dev/null bs=1M 2>/dev/null &
@@ -20,7 +20,7 @@ LOAD_PID1=$!
 dd if=/dev/urandom of=/dev/null bs=1M 2>/dev/null &
 LOAD_PID2=$!
 
-echo "负载已施加。启动音频程序，请留意声音是否有严重的撕裂和乱序..."
+echo "负载已施加。请在此 10 秒内使用 Audacity 录制波形以供后续检视撕裂情况..."
 (sleep 10; echo "") | ./run.sh
 RET_VAL=$?
 
