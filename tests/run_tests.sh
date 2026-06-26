@@ -4,8 +4,8 @@
 # ==============================================================================
 
 # 确保在编译输出目录下运行
-if [ ! -f "./app" ]; then
-    echo "错误：找不到可执行文件 ./app。请在 install 部署目录下运行本脚本。"
+if [ ! -f "./run.sh" ]; then
+    echo "错误：找不到可执行脚本 ./run.sh。请在 install 部署目录下运行本脚本。"
     exit 1
 fi
 
@@ -17,8 +17,8 @@ echo "======================================================"
 echo -e "\n[用例 1] 基础音频连通性测试 (运行 5 秒)"
 echo "------------------------------------------------------"
 echo "请确保已经连接音频对录线，或者环境有背景声音输入。"
-# 使用括号和 sleep，在 5 秒后通过管道向 ./app 输送一个回车符 (Enter) 触发优雅退出
-(sleep 5; echo "") | ./app
+# 使用括号和 sleep，在 5 秒后通过管道向 ./run.sh (及其启动的 app_host) 输送一个回车符 (Enter) 触发优雅退出
+(sleep 5; echo "") | ./run.sh
 RET_VAL=$?
 if [ $RET_VAL -eq 0 ]; then
     echo "[PASSED] 用例 1 通过：双核握手与音频流转正常，并成功优雅退出。"
@@ -40,7 +40,7 @@ dd if=/dev/urandom of=/dev/null bs=1M 2>/dev/null &
 LOAD_PID2=$!
 
 echo "负载已施加。启动音频程序，请留意声音是否有严重的撕裂和乱序..."
-(sleep 10; echo "") | ./app
+(sleep 10; echo "") | ./run.sh
 RET_VAL=$?
 
 # 清理高负载进程
@@ -64,7 +64,7 @@ FAIL_COUNT=0
 for i in $(seq 1 10); do
     echo -n "  -> 第 $i 次尝试运行... "
     # 仅运行 1 秒即发起注销攻击
-    (sleep 1; echo "") | ./app > /dev/null 2>&1
+    (sleep 1; echo "") | ./run.sh > /dev/null 2>&1
     RET_VAL=$?
     
     if [ $RET_VAL -eq 0 ]; then
