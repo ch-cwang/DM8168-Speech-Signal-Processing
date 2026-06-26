@@ -9,8 +9,9 @@
 ### 1. 硬件准备
 
 *   **DM8168 / OMAP-L138 开发板**：正常运行 Linux 及装载 SysLink/IPC 驱动。
-*   **外部纯音音源及分析端 (单台 PC 即可)**：使用电脑浏览器打开 [Online Tone Generator](https://www.szynalski.com/tone-generator/)，并安装开源音频编辑软件 [Audacity](https://www.audacityteam.org/)。
-*   **音频线**：两根 3.5mm 公对公 Aux 对录线（一根连接 **PC 的耳机孔/Line Out** 到开发板的 **Line In**，另一根连接开发板的 **Line Out** 到 **PC 的麦克风/Line In 接口**）。
+*   **外部纯音音源 (单台 PC/手机即可)**：打开浏览器 [Online Tone Generator](https://www.szynalski.com/tone-generator/)。
+*   **音频波形分析端 (PC)**：安装开源音频编辑软件 [Audacity](https://www.audacityteam.org/) 的电脑（用于事后分析文件）。
+*   **音频线**：仅需一根 3.5mm 公对公 Aux 对录线（连接 **音源耳机孔** 到开发板的 **Line In**）。
 
 ### 2. 软件准备
 
@@ -27,10 +28,11 @@
 **目的**：验证 ALSA 的 48kHz, 16bit, Stereo 硬件配置是否成功，以及 DSP 的内存直通拷贝（`memcpy`）是否按预期工作。
 **步骤**：
 
-1. 使用第一根音频线将 **PC 的耳机输出孔**连接至开发板的 **Line In**。使用第二根音频线将开发板的 **Line Out** 连接至 **PC 的麦克风输入孔**。
-2. 运行系统的 `./run.sh` 启动 DSP 和 ARM 线程。
-3. 在 PC 浏览器中通过 Online Tone Generator 持续播放 1kHz 的标准正弦波。
-4. 在 PC 端同时打开 Audacity，选择录音设备为“麦克风”，点击录音按钮录制 5-10 秒。停止后使用鼠标滚轮将波形**放大至毫秒级别**。
+1. 使用 3.5mm 音频线将 **播放源 (手机/PC)** 连接至开发板的 **Line In**。
+2. 运行脚本开启旁路抓包：`./tests/setup_alsa_snoop.sh on`
+3. 运行系统的 `./run.sh` 启动 DSP 和 ARM 线程。
+4. 在播放源设备上持续播放 1kHz 的标准正弦波，维持 10 秒后停止 `./run.sh`。
+5. 将开发板生成的 `/tmp/dsp_playback.raw` 文件拷贝至 PC，用 Audacity 选择“导入 -> 原始数据 (Raw Data)” (格式：16-bit PCM, Little-endian, 双声道, 48000Hz)。使用鼠标滚轮将波形**放大至毫秒级别**。
    **验收标准**：
 - [x] 系统无任何报错，无 Underrun/Overrun 提示。
 - [x] 听感上正弦波纯净，无“哒哒”声或“噼啪”爆音杂音。
@@ -44,12 +46,13 @@
 **目的**：验证代码中精心设计的 ALSA 分段组装逻辑（`frames_left` 机制），确保即使 Linux 系统调度产生长达数十毫秒的卡顿，依然不会将残缺的缓冲帧发给 DSP 引发音频错乱。
 **步骤**：
 
-1. 在 PC 端持续播放正弦波且 Audacity 开始录制的前提下，启动 `./run.sh` 使音频流运转。
+1. 确保已开启旁路抓包 (`setup_alsa_snoop.sh on`)，开启外部正弦波播放，并启动 `./run.sh` 使音频流运转。
 2. 运行高负载测试脚本，例如执行 `dd if=/dev/urandom of=/dev/null` 生成 2-4 个吃满 CPU 资源的后台进程。
 3. 录制 10 秒后停止，在 Audacity 中放大观察这 10 秒内的高压输出波形。
    **验收标准**：
 - [x] CPU 占用率达 99% 甚至 100%。
-- [x] Audacity 中录制的波形依然连续流畅，**坚决不能出现相位突变的垂直撕裂声或明显的音调突变**（偶尔的极短暂由于硬件 DMA 耗尽造成的停顿空白是允许的，但数据帧决不能错位）。
+- [x] Audacity 中导入的旁路录制波形依然连续流畅，**坚决不能出现相位突变的垂直撕裂声或明显的音调突变**（偶尔的极短暂由于硬件 DMA 耗尽造成的停顿空白是允许的，但数据帧决不能错位）。
+4. 测试完毕后，可执行 `./tests/setup_alsa_snoop.sh off` 恢复系统默认声卡配置。
 
 ### [用例 3] 频繁启停与防僵尸进程测试 (IPC Deadlock & Shutdown)
 

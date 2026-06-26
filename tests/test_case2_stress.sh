@@ -12,7 +12,7 @@ fi
 echo "======================================================"
 echo " [用例 2] CPU 极端高负载抗撕裂测试 (运行 10 秒) "
 echo "======================================================"
-echo "请用 PC 持续播放 1kHz 正弦波，并在同一台 PC 用 Audacity 开始录音。"
+echo "请先开启旁路抓包 (setup_alsa_snoop.sh on)，并从外部持续输入正弦波。"
 
 # 启动 2 个高强度无意义计算后台进程，榨干 ARM 端 CPU
 dd if=/dev/urandom of=/dev/null bs=1M 2>/dev/null &
@@ -20,7 +20,7 @@ LOAD_PID1=$!
 dd if=/dev/urandom of=/dev/null bs=1M 2>/dev/null &
 LOAD_PID2=$!
 
-echo "负载已施加。请在此 10 秒内使用 Audacity 录制波形以供后续检视撕裂情况..."
+echo "负载已施加。测试结束后，请将 /tmp/dsp_playback.raw 拷贝至电脑进行检视..."
 (sleep 10; echo "") | ./run.sh
 RET_VAL=$?
 

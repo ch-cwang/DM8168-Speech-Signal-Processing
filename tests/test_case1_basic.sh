@@ -12,8 +12,8 @@ fi
 echo "======================================================"
 echo " [用例 1] 基础音频连通性测试 (运行 5 秒) "
 echo "======================================================"
-echo "请用 PC 打开 Online Tone Generator 播放 1kHz 正弦波输入板子，"
-echo "并在同一台 PC 开启 Audacity 准备录制板子的输出。"
+echo "请先运行 ./tests/setup_alsa_snoop.sh on 开启底层抓包。"
+echo "然后用任意单根音频线从播放源输入 1kHz 正弦波至 Line In。"
 
 # 使用括号和 sleep，在 5 秒后通过管道向 ./run.sh (及其启动的 app_host) 输送一个回车符 (Enter) 触发优雅退出
 (sleep 5; echo "") | ./run.sh
