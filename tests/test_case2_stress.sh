@@ -20,7 +20,7 @@ LOAD_PID1=$!
 dd if=/dev/urandom of=/dev/null bs=1M 2>/dev/null &
 LOAD_PID2=$!
 
-echo "负载已施加。测试结束后，请将 /tmp/dsp_playback.raw 拷贝至电脑进行检视..."
+echo "负载已施加。测试结束后，请将当前目录下的 ./dsp_playback.raw 拷贝至电脑进行检视..."
 (sleep 10; echo "") | ./run.sh
 RET_VAL=$?
 

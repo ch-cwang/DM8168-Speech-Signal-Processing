@@ -32,7 +32,7 @@
 2. 运行脚本开启旁路抓包：`./tests/setup_alsa_snoop.sh on`
 3. 运行系统的 `./run.sh` 启动 DSP 和 ARM 线程。
 4. 在播放源设备上持续播放 1kHz 的标准正弦波，维持 10 秒后停止 `./run.sh`。
-5. 将开发板生成的 `/tmp/dsp_playback.raw` 文件拷贝至 PC，用 Audacity 选择“导入 -> 原始数据 (Raw Data)” (格式：16-bit PCM, Little-endian, 双声道, 48000Hz)。使用鼠标滚轮将波形**放大至毫秒级别**。
+5. 将开发板当前目录下生成的 `./dsp_playback.raw` 文件拷贝至 PC，用 Audacity 选择“导入 -> 原始数据 (Raw Data)” (格式：16-bit PCM, Little-endian, 双声道, 48000Hz)。使用鼠标滚轮将波形**放大至毫秒级别**。
    **验收标准**：
 - [x] 系统无任何报错，无 Underrun/Overrun 提示。
 - [x] 听感上正弦波纯净，无“哒哒”声或“噼啪”爆音杂音。

@@ -5,7 +5,7 @@
 # ==============================================================================
 
 ASOUNDRC="$HOME/.asoundrc"
-OUTPUT_FILE="/tmp/dsp_playback.raw"
+OUTPUT_FILE="./dsp_playback.raw"
 
 if [ "$1" = "on" ]; then
     echo "开启 ALSA 旁路抓包模式..."
@@ -18,7 +18,7 @@ pcm.!default {
     playback.pcm {
         type file
         slave.pcm "plughw:0,0"
-        file "/tmp/dsp_playback.raw"
+        file "./dsp_playback.raw"
         format "raw"
     }
     capture.pcm "plughw:0,0"
