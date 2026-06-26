@@ -84,12 +84,18 @@
 1. 执行 `../tests/setup_alsa_snoop.sh on` 开启底层录音插件。
 2. 用任意单根 3.5mm 音频线输入 1kHz 纯正弦波。
 3. 运行测试脚本，在开发板当前目录下 `./dsp_playback.raw` 将生成 DSP 采播的原始数据流。导入 PC 的 Audacity 即可分析波形的绝对连续性。
+
 在 `install/` 目录下（或者已挂载板卡的目录），直接运行您想测试的脚本：
 ```bash
 ../tests/test_case1_basic.sh
 ../tests/test_case2_stress.sh
 ../tests/test_case3_ipc_lifecycle.sh
 ```
+
+此外，您可以参考以下文档了解详细的技术背景与验证方案：
+*   [Audio Test Plan (`tests/audio_test_plan.md`)](tests/audio_test_plan.md)：完整的软硬件测试方案与验收标准。
+*   [System Design Document (`docs/system_design.md`)](docs/system_design.md)：关于架构设计、IPC 流控、物理内存分配与抗撕裂机制的深度技术剖析文档。
+
 该测试集包含：
 1. **基础连通性**：5秒内的无丢帧收发。
 2. **高负载抗撕裂测试**：榨干 ARM CPU 时的音频拼装稳定性。
