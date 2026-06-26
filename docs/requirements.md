@@ -12,20 +12,24 @@
 系统主要由四大实体构成，它们各自承担绝对隔离的职责。
 
 ```mermaid
-usecaseDiagram
-    actor External as 外部世界 (ADC/DAC, 麦克风/扬声器)
-    actor Algorithm as 算法工程师 (二次开发)
-    
-    package "DM8168 双核系统架构" {
-        usecase "ARM 搬运核心" as UC_ARM
-        usecase "SysLink IPC 桥梁" as UC_IPC
-        usecase "DSP 运算核心" as UC_DSP
+flowchart LR
+    %% Actors
+    External((外部世界<br/>ADC/DAC))
+    Algorithm((算法工程师<br/>二次开发))
+
+    %% System Boundary
+    subgraph DM8168 ["DM8168 双核系统架构"]
+        direction TB
+        UC_ARM([ARM 搬运核心])
+        UC_IPC([SysLink IPC 桥梁])
+        UC_DSP([DSP 运算核心])
         
-        External --> UC_ARM : 提供/接收 16-bit PCM 流
-        UC_ARM --> UC_IPC : 封包、拼装、触发中断
-        UC_IPC --> UC_DSP : 物理内存零拷贝直达
-        UC_DSP --> Algorithm : 提供纯粹的 (in, out, len) 指针入口
-    }
+        UC_ARM <-->|封包、拼装、触发中断| UC_IPC
+        UC_IPC <-->|物理内存零拷贝直达| UC_DSP
+    end
+
+    External <-->|提供/接收 16-bit PCM 流| UC_ARM
+    UC_DSP <-->|提供纯粹的 in/out/len 指针入口| Algorithm
 ```
 
 ---
