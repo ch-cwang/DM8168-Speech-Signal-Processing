@@ -75,7 +75,7 @@ void *thread_play(void *arg);
  * @param stream SND_PCM_STREAM_CAPTURE or SND_PCM_STREAM_PLAYBACK
  * @return 0 on success, -1 on failure
  */
-int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) { //[cite: 2]
+int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) {
   snd_pcm_hw_params_t
       *params; // 声明硬件参数结构体指针，用于配置采样率、位深、物理通道等[cite:
                // 2]
@@ -86,24 +86,24 @@ int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) { //[cite: 2]
   /* 核心音质定义 */
   unsigned int val =
       48000;   // 强制采用 48000Hz (演播室/DAT级) 采样率。避免因低端声卡不支持
-               // 8000Hz 导致的内核强行重采样破音[cite: 2]
-  int dir = 0; // 存放配置时的方向指示 (0 表示精确匹配，无上下浮动)[cite: 2]
+               // 8000Hz 导致的内核强行重采样破音
+  int dir = 0; // 存放配置时的方向指示 (0 表示精确匹配，无上下浮动)
 
   /* 核心流控参数定义 */
   snd_pcm_uframes_t frames =
       PERIOD_FRAMES; // 设定“中断周期(Period)”：声卡每处理完 960 帧 (20ms)
-                     // 触发一次中断，通知 ARM 搬数据[cite: 2]
+                     // 触发一次中断，通知 ARM 搬数据
 
   /* 将硬件底层的 DMA 环形缓冲总池子放大到 6 个周期 (即 6 * 20ms = 120ms)。
      这意味着即使 Linux 操作系统因为调度其他任务卡顿了长达 100 毫秒，
      底层的声卡芯片依然有数据可播、有空间可录，绝对不会发生 Underrun/Overrun
      报错！*/
-  snd_pcm_uframes_t buffer_size = frames * 6; //[cite: 2]
+  snd_pcm_uframes_t buffer_size = frames * 6;
 
   /* 尝试打开默认的声卡设备 ("default")。若设备被独占或不存在则返回 -1 销毁线程
    */
   if (snd_pcm_open(handle, "default", stream, 0) < 0)
-    return -1; //[cite: 2]
+    return -1;
 
   /* --------------------------------------------------------------------------
    */
@@ -111,42 +111,42 @@ int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) { //[cite: 2]
   /* --------------------------------------------------------------------------
    */
   snd_pcm_hw_params_malloc(
-      &params); // 在堆内存中为硬件参数结构体分配空间[cite: 2]
+      &params); // 在堆内存中为硬件参数结构体分配空间
   snd_pcm_hw_params_any(*handle,
                         params); // 将该声卡支持的所有全量默认配置选项填入
-                                 // params 中，作为修改的基础[cite: 2]
+                                 // params 中，作为修改的基础
 
   /* 设定数据交错模式。INTERLEAVED 意味着双声道数据在内存中是左右左右交错存放的
    * (L R L R L R) */
   snd_pcm_hw_params_set_access(*handle, params,
-                               SND_PCM_ACCESS_RW_INTERLEAVED); //[cite: 2]
+                               SND_PCM_ACCESS_RW_INTERLEAVED);
 
   /* 设定量化位深格式：Signed 16-bit Little Endian
    * (16位有符号小端序)。这是最经典的 CD 级位深格式 */
   snd_pcm_hw_params_set_format(*handle, params,
-                               SND_PCM_FORMAT_S16_LE); //[cite: 2]
+                               SND_PCM_FORMAT_S16_LE);
 
   /* 设定物理声道数：2 (双声道立体声) */
-  snd_pcm_hw_params_set_channels(*handle, params, 2); //[cite: 2]
+  snd_pcm_hw_params_set_channels(*handle, params, 2);
 
   /* 设定采样率 (将前面定义的 48000 注入)。使用 _near 是因为如果声卡死活不支持
    * 48k，它会选一个最接近的以防直接崩溃 */
-  snd_pcm_hw_params_set_rate_near(*handle, params, &val, &dir); //[cite: 2]
+  snd_pcm_hw_params_set_rate_near(*handle, params, &val, &dir);
 
   /* 设定中断周期大小 (960帧)，控制声卡打断 CPU 的频率 */
   snd_pcm_hw_params_set_period_size_near(*handle, params, &frames,
-                                         &dir); //[cite: 2]
+                                         &dir);
 
   /* 设定底层 DMA 环形缓冲区的总容量 (5760帧/120ms) */
   snd_pcm_hw_params_set_buffer_size_near(*handle, params,
-                                         &buffer_size); //[cite: 2]
+                                         &buffer_size);
 
   /* 所有的硬件需求打包完毕，正式下发给 Linux
    * 内核与底层硬件执行。若配置存在冲突则返回负数 */
   if (snd_pcm_hw_params(*handle, params) < 0)
-    return -1; //[cite: 2]
+    return -1;
   snd_pcm_hw_params_free(
-      params); // 配置生效，释放参数结构体占用的堆内存[cite: 2]
+      params); // 配置生效，释放参数结构体占用的堆内存
 
   /* --------------------------------------------------------------------------
    */
@@ -154,12 +154,12 @@ int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) { //[cite: 2]
    * 预充水机制防线      */
   /* --------------------------------------------------------------------------
    */
-  snd_pcm_sw_params_malloc(&swparams); // 为软件流控参数分配内存[cite: 2]
+  snd_pcm_sw_params_malloc(&swparams); // 为软件流控参数分配内存
   snd_pcm_sw_params_current(
-      *handle, swparams); // 获取当前声卡的默认软件控制策略[cite: 2]
+      *handle, swparams); // 获取当前声卡的默认软件控制策略
 
   /* 预充水机制只需针对“播放端”进行干预 */
-  if (stream == SND_PCM_STREAM_PLAYBACK) { //[cite: 2]
+  if (stream == SND_PCM_STREAM_PLAYBACK) {
     /* 【极其关键的防撕裂机制：Start Threshold】
        如果不设置这行，默认策略是“给一帧数据就立刻开喇叭播一帧”。在冷启动瞬间，
        由于第一块数据刚到，第二块还在 DSP
@@ -169,19 +169,19 @@ int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) { //[cite: 2]
        绝对不允许启动喇叭！”
        这样就能强制积攒出一个巨大的抗抖动水库，彻底扼杀冷启动破音。 */
     snd_pcm_sw_params_set_start_threshold(*handle, swparams,
-                                          frames * 3); //[cite: 2]
+                                          frames * 3);
 
     /* 设定最小唤醒水位线：只要硬件缓冲区里腾出哪怕 1 个周期 (960帧)
        的空闲空间， ALSA 就应该立刻唤醒被阻塞的 writei
        线程去填补数据。保证填水足够积极。 */
-    snd_pcm_sw_params_set_avail_min(*handle, swparams, frames); //[cite: 2]
+    snd_pcm_sw_params_set_avail_min(*handle, swparams, frames);
   }
 
   /* 软件策略打包完毕，下发给 ALSA 内核使其生效 */
-  snd_pcm_sw_params(*handle, swparams); //[cite: 2]
-  snd_pcm_sw_params_free(swparams);     // 释放资源[cite: 2]
+  snd_pcm_sw_params(*handle, swparams);
+  snd_pcm_sw_params_free(swparams);     // 释放资源
 
-  return 0; // 配置大功告成，成功返回[cite: 2]
+  return 0; // 配置大功告成，成功返回
 }
 
 Int App_create(UInt16 remoteProcId) {
