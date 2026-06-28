@@ -8,10 +8,10 @@
 
 ### 1. 硬件准备
 
-*   **DM8168 / OMAP-L138 开发板**：正常运行 Linux 及装载 SysLink/IPC 驱动。
-*   **外部纯音音源 (单台 PC/手机即可)**：打开浏览器 [Online Tone Generator](https://www.szynalski.com/tone-generator/)。
-*   **音频波形分析端 (PC)**：安装开源音频编辑软件 [Audacity](https://www.audacityteam.org/) 的电脑（用于事后分析文件）。
-*   **音频线**：仅需一根 3.5mm 公对公 Aux 对录线（连接 **音源耳机孔** 到开发板的 **Line In**）。
+* **DM8168 / OMAP-L138 开发板**：正常运行 Linux 及装载 SysLink/IPC 驱动。
+* **外部纯音音源 (单台 PC/手机即可)**：打开浏览器 [Online Tone Generator](https://www.szynalski.com/tone-generator/)。
+* **音频波形分析端 (PC)**：安装开源音频编辑软件 [Audacity](https://www.audacityteam.org/) 的电脑（用于事后分析文件）。
+* **音频线**：仅需一根 3.5mm 公对公 Aux 对录线（连接 **音源耳机孔** 到开发板的 **Line In**）。
 
 ### 2. 软件准备
 
@@ -83,10 +83,11 @@
 ---
 
 ## 四、 自动化测试脚本 (`tests/test_case*.sh`)
+
 为方便在开发板上实施测试，我已在工程目录的 `tests/` 下为您编写了分立的测试脚本。
 
-*   `test_case1_basic.sh`：执行基础音频连通性验证。
-*   `test_case2_stress.sh`：在极限 CPU 负载下测试抗撕裂性。
-*   `test_case3_ipc_lifecycle.sh`：执行快速启停防死锁和防僵尸进程压力测试。
+* `test_case1_basic.sh`：执行基础音频连通性验证。
+* `test_case2_stress.sh`：在极限 CPU 负载下测试抗撕裂性。
+* `test_case3_ipc_lifecycle.sh`：执行快速启停防死锁和防僵尸进程压力测试。
 
 您可以按需在开发板上分别运行它们，无需人工干预即可自动化完成测试。
