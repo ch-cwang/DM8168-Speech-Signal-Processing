@@ -1,8 +1,19 @@
-Shared Region Example
+DM8168 Speech Signal Processing (Audio Streaming System)
 
-Program Logic:
-The GPP creates a string buffer in shared region 1 heap. The string buffer is 
-then populated with a lowercase string. The GPP then passes the string buffer 
-address to the slave. The slave translates the lowercase string to uppercase and
-notifies the GPP that it is done with its operation.
+=============================================================================
 
+Notice: 
+This project has evolved from the TI "Shared Region Example" into a complete 
+real-time audio streaming and processing framework between the ARM (Host) and 
+DSP (Server). 
+
+The legacy string conversion logic (lowercase to uppercase) has been entirely 
+replaced by a robust, anti-tearing zero-copy audio pipeline using ALSA and 
+SysLink IPC.
+
+For full project documentation, architectural diagrams, requirements, and 
+testing instructions, please refer to the markdown file:
+-> README.md
+-> docs/system_design.md
+
+=============================================================================
