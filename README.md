@@ -38,6 +38,8 @@
 *   `dsp/` - DSP 端运行的 SYS/BIOS 固件源码。包含 `main_dsp.c` (OS引导)、`Server.c` (音频处理算法节点) 和 `Dsp.cfg` (系统与内存配置文件)。
 *   `shared/` - 双核共享头文件，定义通信握手指令、音频参数与 IPC 宏。
 *   `tests/` - 自动化测试脚本目录，包含 `test_case1_basic.sh` 等独立测试脚本。
+*   `docs/` - 系统核心设计与分析文档，包含需求规格、架构设计及测试验收报告。
+*   `PPT/` - 项目演示与答辩相关材料。
 *   `makefile` / `products.mak.example` - 项目构建脚本与开发环境配置模板。
 *   `run.sh` - 目标板部署运行脚本。
 
