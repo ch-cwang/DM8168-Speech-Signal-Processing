@@ -83,8 +83,7 @@ int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) {
 
   /* 核心音质定义 */
   unsigned int val =
-      48000;   // 强制采用 48000Hz (演播室/DAT级) 采样率。避免因低端声卡不支持
-               // 8000Hz 导致的内核强行重采样破音
+      16000;   // 采样率 16000Hz（为降低 DSP 卷积算力、避免实时欠载）
   int dir = 0; // 存放配置时的方向指示 (0 表示精确匹配，无上下浮动)
 
   /* 核心流控参数定义 */
@@ -127,8 +126,8 @@ int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) {
   /* 设定物理声道数：2 (双声道立体声) */
   snd_pcm_hw_params_set_channels(*handle, params, 2);
 
-  /* 设定采样率 (将前面定义的 48000 注入)。使用 _near 是因为如果声卡死活不支持
-   * 48k，它会选一个最接近的以防直接崩溃 */
+  /* 设定采样率 (将前面定义的 16000 注入)。使用 _near 是因为如果声卡死活不支持
+   * 16k，它会选一个最接近的以防直接崩溃 */
   snd_pcm_hw_params_set_rate_near(*handle, params, &val, &dir);
 
   /* 设定中断周期大小 (960帧)，控制声卡打断 CPU 的频率 */

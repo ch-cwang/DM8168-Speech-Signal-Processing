@@ -16,12 +16,12 @@
 
 /**
  * @name Core Audio Quality Parameters
- * @brief Matches studio grade: arecord -f dat (48000Hz, Stereo, S16_LE)
+ * @brief 16000Hz, Stereo, S16_LE
  * @{
  */
-#define PERIOD_FRAMES               960   /**< 20ms per period, perfectly fits Linux ALSA scheduling (每周期 20ms，完美适应 Linux 调度) */
+#define PERIOD_FRAMES               320   /**< 20ms per period at 16000Hz (每周期 20ms) */
 #define BYTES_PER_FRAME             4     /**< Stereo * 16-bit (2 bytes) = 4 bytes per frame (双声道*16bit=4字节) */
-#define BLOCK_SIZE                  (PERIOD_FRAMES * BYTES_PER_FRAME) /**< 3840 bytes per block (单块字节数) */
+#define BLOCK_SIZE                  (PERIOD_FRAMES * BYTES_PER_FRAME) /**< 1280 bytes per block (单块字节数) */
 #define BLOCK_COUNT                 20    /**< 20 blocks per direction, total 400ms buffer pool (单向20块，共400ms缓冲池) */
 /** @} */
 

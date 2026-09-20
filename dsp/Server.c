@@ -87,9 +87,13 @@ static short cur_R[PERIOD_FRAMES];
 static short out_L[PERIOD_FRAMES];
 static short out_R[PERIOD_FRAMES];
 
-/* Q30 -> Q15 饱和截断（先右移 15 位，再做 int16 饱和） */
-static short sat16(long long acc) {
-  long long q = acc >> 15;
+/*
+ * Q30 -> Q15 饱和截断。
+ * 注意：C674x 的 long 是 40 位，正好对应原生 40 位 MAC 累加器，
+ * 比 int(32 位) 安全、比 long long(64 位) 快（后者要软件模拟）。
+ */
+static short sat16(long acc) {
+  long q = acc >> 15;
   if (q > 32767) return 32767;
   if (q < -32768) return -32768;
   return (short)q;
@@ -106,14 +110,18 @@ static void fir_stream(const short *cur, const short *h,
                        short *out, short *hist) {
   int j, k;
   for (j = 0; j < PERIOD_FRAMES; j++) {
-    long long acc = 0;
-    for (k = 0; k < HRIR_LEN; k++) {
-      int d = j - k;                 /* 卷积延迟，d < 0 表示取历史 */
-      long long x = (d >= 0) ? (long long)cur[d]
-                             : (long long)hist[d + HRIR_HIST];
-      acc += (long long)h[k] * x;    /* Q15 x Q15 = Q30，64 位累加防溢出 */
-    }
-    out[j] = sat16(acc);             /* Q30 -> Q15 饱和 */
+    long acc = 0;                                    /* Q30 累加器（40 位） */
+    int k1 = (j < HRIR_LEN) ? j : (HRIR_LEN - 1);     /* min(j, 511) */
+
+    /* 当前块部分：j - k >= 0 */
+    for (k = 0; k <= k1; k++)
+      acc += (int)h[k] * (int)cur[j - k];
+
+    /* 历史部分：j - k < 0 */
+    for (k = k1 + 1; k < HRIR_LEN; k++)
+      acc += (int)h[k] * (int)hist[j - k + HRIR_HIST];
+
+    out[j] = sat16(acc);                              /* Q30 -> Q15 饱和 */
   }
   /* 更新历史：保留当前块末尾 HRIR_HIST 个样本，供下一块使用 */
   memcpy(hist, cur + (PERIOD_FRAMES - HRIR_HIST),
