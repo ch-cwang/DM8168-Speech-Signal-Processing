@@ -1,235 +1,123 @@
-# DM8168 异构多核音频流控系统详细设计文档 (System Design)
+# 系统设计说明（SDD）
 
-本文档旨在全面且深入地阐述 DM8168 (ARM Cortex-A8 + DSP C674x) 双核音频处理底座的核心架构、内存管理、IPC 信令机制以及高级抗撕裂流控策略。
-文档中预留了专门的图表占位符，以便在后续架构演进中插入详细的时序图、状态机图与内存分布图。
+## 1. 架构概述
 
----
+系统采用非对称多核（AMP）架构。ARM Cortex-A8 运行 Linux，负责系统调度、ALSA 驱动与生命周期管理；DSP C674x 运行 SYS/BIOS，负责实时音频处理。两核通过 SysLink IPC（Notify + SharedRegion）通信。
 
-## 1. 系统架构总览 (Architecture Overview)
-
-本系统采用非对称多处理 (AMP, Asymmetric Multiprocessing) 架构，通过异构核心的物理级解耦，实现“调度管理”与“实时计算”的完美分离。
-
-```mermaid
-graph TD
-    subgraph Host ["ARM Cortex-A8 (Linux OS)"]
-        App["Host Application (app)"]
-        ALSA["ALSA Audio Subsystem"]
-    end
-
-    subgraph SysLink ["SysLink IPC"]
-        SR["SharedRegion_1 (153.6KB)"]
-        Notify["Hardware Mailbox Notify"]
-    end
-
-    subgraph Server ["DSP C674x (SYS/BIOS)"]
-        Task["DSP Audio Processing Task"]
-    end
-
-    Codec["Hardware Audio Codec (TLV320AIC3X)"]
-
-    Codec <-->|I2S/DMA| ALSA
-    ALSA <-->|readi/writei| App
-    App <-->|Zero-Copy| SR
-    App <-->|Interrupt| Notify
-    Notify <-->|Interrupt| Task
-    SR <-->|Zero-Copy| Task
+```
+外部音频编解码器 (ADC/DAC)
+        │  I2S / DMA
+        ▼
+ARM Cortex-A8 (Linux)
+  main_host.c / App.c
+  录制线程 · 播放线程
+        │  Notify / SharedRegion
+        ▼
+共享内存 SR1 (153600 字节)
+  TX 录制区 (76800 字节) · RX 播放区 (76800 字节)
+        ▲
+        │  Notify / SharedRegion
+DSP C674x (SYS/BIOS)
+  main_dsp.c / Server.c
+  音频处理任务
 ```
 
-* **Host 端 (ARM Cortex-A8)**
-  * **职责**：运行标准 Linux 操作系统。全权接管 ALSA 音频子系统的复杂驱动交互、网络协议栈、文件 I/O 以及外部硬件中断捕获。
-  * **特性**：由于非实时 OS 存在调度延迟，Host 端被设计为“容错型”数据搬运工，通过大容量缓冲池来抵消 Linux 调度带来的抖动。
-* **Server 端 (DSP C674x)**
-  * **职责**：运行 TI SYS/BIOS 实时操作系统 (RTOS)。处于“无外设、无抢占、纯数学”的理想真空环境中，专注于执行高算力的数字信号处理算法（如 AEC 降噪、AGC 自动增益、1024阶 FIR 滤波等）。
-* **双核桥梁 (SysLink)**
-  * **物理层**：`SharedRegion` (基于高速内部 RAM 或专享 DDR 划分的非 Cache 一致性内存)。
-  * **信令层**：`Notify` (基于底层硬件 Mailbox 邮箱寄存器的超低延迟硬中断)。
+## 2. 模块设计
 
----
+### 2.1 Host（ARM / Linux）
 
-## 2. 物理内存管理与环形缓冲设计 (Memory Layout & Ring Buffer)
+- `main_host.c`：SysLink 初始化、加载并启动 DSP、生命周期管理。
+- `App.c`：ALSA 参数配置、录制/播放线程、共享内存索引与信号量流控。
 
-为了消除传统双核通信中的 `memcpy` 性能损耗，本系统采用**零拷贝 (Zero-Copy)** 物理共享内存池设计。
+### 2.2 DSP（SYS/BIOS）
 
-```mermaid
-graph TD
-    subgraph SHARED_REGION_1 ["SHARED_REGION_1 (总计 153.6 KB)"]
-        direction LR
-        subgraph TX_Region ["TX 录音区: 76.8 KB, 偏移量 0x00000"]
-            TX0["Block 0: 3840 Bytes"]
-            TX1["Block 1: 3840 Bytes"]
-            TXN["..."]
-            TX19["Block 19: 3840 Bytes"]
-            TX0 --- TX1 --- TXN --- TX19
-        end
-        subgraph RX_Region ["RX 播放区: 76.8 KB, 偏移量 0x12C00"]
-            RX0["Block 0: 3840 Bytes"]
-            RX1["Block 1: 3840 Bytes"]
-            RXN["..."]
-            RX19["Block 19: 3840 Bytes"]
-            RX0 --- RX1 --- RXN --- RX19
-        end
-    end
-```
+- `main_dsp.c`：BIOS 启动、IPC 启动与核间连接。
+- `Server.c`：音频处理主循环，监听中断、取数、处理、写回。
+- `Dsp.cfg`：配置 SharedRegion、多核名称、缓存与内存映射。
 
-### 2.1 音频规格与缓存深度计算
+### 2.3 共享内存
 
-* **采样规格**: 48,000 Hz, Signed 16-bit, Stereo (4 Bytes/Frame)。
-* **ALSA 中断周期**: `PERIOD_FRAMES = 960`，即底层硬件每 20ms 触发一次数据搬运。
-* **单块大小 (Block Size)**: `960 Frames * 4 Bytes = 3840 Bytes`。
-* **抗抖动深度 (Block Count)**: 单向设计为 `20` 个 Block，总计 **400 毫秒** 的物理级缓冲池深度。即使 Linux 内核锁死高达 300 毫秒，底层 DMA 依旧有足够的数据连续发声。
+在 SharedRegion SR1 中申请 153600 字节，分为 TX 录制区（76800 字节）与 RX 播放区（76800 字节）。
 
-### 2.2 内存空间划分
+## 3. 内存布局与环形缓冲
 
-系统总申请物理内存大小为 **153.6 KB** (`FULL_BUFFER_SIZE`)，均分两区：
+| 参数 | 值 |
+|------|----|
+| 采样率 | 48000 Hz |
+| 声道 | 2（Stereo） |
+| 位深 | 16 bit（S16_LE） |
+| 每帧字节数 | 4 |
+| 周期帧数 `PERIOD_FRAMES` | 960（20 ms） |
+| 块大小 `BLOCK_SIZE` | 3840 字节 |
+| 块数 `BLOCK_COUNT` | 20 |
+| 单区大小 `HALF_BUFFER_SIZE` | 76800 字节 |
+| 总大小 `FULL_BUFFER_SIZE` | 153600 字节（150 KiB） |
 
-1. **TX 录音区 (`0x00000` - `0x12BFF`)**: 共 76,800 Bytes。存放 ARM 从外设采集的原始 PCM 数据。
-2. **RX 播放区 (`0x12C00` - `0x257FF`)**: 共 76,800 Bytes。存放 DSP 算法处理完毕、准备送给 DAC 的音频数据。
+TX 与 RX 各含 20 个 3840 字节的块，通过绝对索引（0～19）在核间传递所有权。
 
-### 2.3 物理-虚拟地址转换屏障
+## 4. IPC 协议
 
-Host (Linux) 操作的是带 MMU 映射的虚拟地址，而 DSP 操作的是物理地址。所有跨核传递的数据指针必须通过 `SharedRegion_getSRPtr()` 转换为与地址空间无关的 32 位 `SRPtr` 标识，对方接收后再通过 `SharedRegion_getPtr()` 翻译为本地可用地址。
+Notify 载荷为 32 位：高 16 位为命令，低 16 位为块索引。
 
----
+### 4.1 数据流命令
 
-## 3. 多线程模型与无锁调度 (Threading Model & Lock-free IPC)
+| 命令 | 值 | 含义 |
+|------|----|------|
+| CMD_APP_TO_SERVER_DATA_READY | 0x0001 | ARM 采集完成，交 DSP 处理 |
+| CMD_APP_TO_SERVER_PLAY_DONE | 0x0002 | ARM 播放完成，块可复用 |
+| CMD_SERVER_TO_APP_DATA_READY | 0x0003 | DSP 处理完成，通知 ARM 播放 |
+| CMD_SERVER_TO_APP_RECORD_DONE | 0x0004 | DSP 消费完录制块，归还 ARM |
 
-Host 端设计了三个高并发线程，依靠互斥信号量 (`sem_t`) 与 IPC 信令实现无锁 (Lock-free) 的环形队列调度。
+### 4.2 控制命令
 
-```mermaid
-sequenceDiagram
-    participant Main as ARM Main Thread
-    participant Rec as ARM Record Thread
-    participant Play as ARM Play Thread
-    participant DSP as DSP Audio Task
+| 命令 | 值 | 含义 |
+|------|----|------|
+| APP_CMD_NOP | 0x00000000 | 启动握手（心跳） |
+| APP_SPTR_LADDR | 0x10000000 | 共享内存指针低 16 位 |
+| APP_SPTR_HADDR | 0x20000000 | 共享内存指针高 16 位 |
+| APP_SPTR_ADDR_ACK | 0x30000000 | 指针握手确认 |
+| APP_CMD_SHUTDOWN | 0x40000000 | 请求退出 |
+| APP_CMD_SHUTDOWN_ACK | 0x50000000 | 退出确认 |
 
-    Main->>DSP: 传输共享内存高低 16 位指针 (SPTR)
-    Note over Main,DSP: 开始多线程流控死循环
+共享内存指针通过两次 16 位传输（`APP_SPTR_LADDR` / `APP_SPTR_HADDR`）完成握手。
 
-    loop 核心数据流转 (20ms 节拍)
-        Rec->>Rec: snd_pcm_readi 读取 960 帧
-        Rec->>DSP: 触发 Notify (CMD_DATA_READY + Index)
-        Note over DSP: 物理内存直接读取运算 (Zero-Copy)
-        DSP->>DSP: 将结果写入 RX 区对应的 Index
-        DSP->>Play: 触发 Notify (CMD_DATA_READY + Index)
-        DSP->>Rec: 触发 Notify (CMD_RECORD_DONE + Index)
-        Play->>Play: sem_wait 被唤醒，取出 Index
-        Play->>Play: snd_pcm_writei 写入底层 DAC
-        Play->>DSP: 触发 Notify (CMD_PLAY_DONE + Index)
-    end
-```
+## 5. 数据流（20 ms 周期）
 
-### 3.1 Host 端三线程模型
+1. ARM 录制线程读满 960 帧，写入 TX 区索引 N，发送 `DATA_READY(N)`。
+2. DSP 收到中断，从 TX 区读取块 N，执行处理（当前为 `memcpy`），结果写入 RX 区索引 N，发送 `RECORD_DONE(N)` 与 `DATA_READY(N)`。
+3. ARM 播放线程收到 `DATA_READY(N)`，从 RX 区读取块 N，写入 DAC，发送 `PLAY_DONE(N)`。
+4. DSP 收到 `PLAY_DONE(N)`，归还块 N 供下一轮使用。
 
-1. **Main 线程 (控制面)**：负责初始化 ALSA 参数、申请共享内存、向 DSP 发送初始化地址，以及捕获退出信号执行清理。
-2. **Record 线程 (生产端)**：调用 `snd_pcm_readi` 阻塞读取音频，读取完成后通过 `CMD_APP_TO_SERVER_DATA_READY` 唤醒 DSP。受 `empty_in` 信号量约束（初始值为 `BLOCK_COUNT`）。
-3. **Play 线程 (消费端)**：受 `full_out` 信号量约束（初始值为 0），被 DSP 唤醒后，调用 `snd_pcm_writei` 写入底层驱动，完毕后发送 `CMD_APP_TO_SERVER_PLAY_DONE` 归还所有权。
+## 6. 线程与流控
 
-### 3.2 IPC 信令编码协议
+ARM 端包含三个线程：
 
-TI Notify Payload 只有 32-bit，为最大化信息量，系统将其拆分为：
+- Main 线程：初始化与退出控制。
+- Record 线程：生产者，受 `empty_in` 信号量约束（初始值 20）。
+- Play 线程：消费者，受 `full_out` 信号量约束（初始值 0）。
 
-* **高 16 位 (Command)**：状态机指令。
-* **低 16 位 (Index)**：操作的目标内存块索引 (`0` ~ `19`)。
+DSP 端包含一个音频处理任务，受 `full_in`（初始值 0）与 `empty_out`（初始值 20）约束。
 
-核心数据驱动指令（4 次轮转）：
+两组信号量保持守恒：`empty_in + full_in = 20`，`empty_out + full_out = 20`。
 
-```c
-#define CMD_APP_TO_SERVER_DATA_READY  0x0001 // [0x0001][Index]: ARM 采集完毕，交由 DSP 运算
-#define CMD_APP_TO_SERVER_PLAY_DONE   0x0002 // [0x0002][Index]: ARM 播放完毕，该块可被覆写
-#define CMD_SERVER_TO_APP_DATA_READY  0x0003 // [0x0003][Index]: DSP 处理完毕，通知 ARM 播放
-#define CMD_SERVER_TO_APP_RECORD_DONE 0x0004 // [0x0004][Index]: DSP 消费完录音块，归还给 ARM
-```
+## 7. ALSA 流控与抗撕裂
 
-这种仅依靠绝对索引 (`Index`) 移交内存块所有权的设计，彻底避免了共享内存的锁竞争 (Mutex/Spinlock)，极大降低了系统调度的 CPU 消耗。
+- 播放启动阈值 `start_threshold = 3 × 960`，`avail_min = 960`。
+- 读写采用偏移量（offset）拼装循环，残缺数据强制拼满 960 帧后才发送。
+- 出错时调用 `snd_pcm_recover` 恢复底层指针。
 
----
+## 8. 启动与退出
 
-## 4. ALSA 内核流控与抗撕裂机制 (ALSA Flow Control & Anti-Tearing)
+### 8.1 启动
 
-这是整个系统能够在高达 100% CPU 负载下依然不爆音、不撕裂的技术核心。
+1. SysLink 加载并启动 DSP 固件。
+2. 双核互发 `APP_CMD_NOP` 完成握手。
+3. ARM 分配共享内存，分两次发送 32 位指针（LADDR/HADDR），DSP 逐次确认。
+4. ARM 启动录制线程与播放线程，进入 20 ms 数据循环。
 
-```mermaid
-stateDiagram-v2
-    [*] --> Start_Read: 设定 frames_left = 960
+### 8.2 退出
 
-    Start_Read --> Read_Call: 调用 snd_pcm_readi(offset)
-
-    Read_Call --> Success: 返回帧数 rc == frames_left
-    Read_Call --> Partial: 返回残块 0 < rc < frames_left
-    Read_Call --> Error: 返回 -EPIPE 等错误
-
-    Error --> Recover: 调用 snd_pcm_recover 修复内核指针
-    Recover --> Read_Call: 重新尝试读取当前未完帧
-
-    Partial --> Update_Offset: frames_left -= rc<br>offset += rc * 4
-    Update_Offset --> Read_Call: 继续向内核讨要剩余残缺帧
-
-    Success --> Complete: 拼装 960 帧满血完成
-    Complete --> [*]: 发送给 DSP
-```
-
-### 4.1 抗撕裂帧拼装机制 (Offset Assembly)
-
-在高压环境下，ALSA 中断可能被延迟，导致单次 `snd_pcm_readi` 或 `writei` 无法足额获取/写入预定的 `960` 帧，从而引发 `-EPIPE` (Underrun/Overrun) 或返回截断的残块。
-系统采用了严密的**游标偏移 (Offset) 强制拼装循环**：
-
-```c
-int frames_left = PERIOD_FRAMES; // 坚守 960 帧底线
-int offset = 0;
-while (frames_left > 0 && g_running) {
-    int rc = snd_pcm_readi(handle, tx_base + block_offset + offset, frames_left);
-    if (rc < 0) {
-        snd_pcm_recover(handle, rc, 0); // 让内核原生修复指针
-    } else {
-        frames_left -= rc;              // 扣减已读帧数
-        offset += rc * BYTES_PER_FRAME; // 游标后移，下次继续拼装尾部
-    }
-}
-```
-
-该机制保证了：**宁可在 ARM 端死循环等待，也绝不将任何一帧发生移位的残缺数据送入 DSP**。
-
-### 4.2 冷启动预充水机制 (Pre-Charging `start_threshold`)
-
-系统上电初期是调度最不稳定的时刻，为了避免播放线程刚喂入一块数据，底层 DMA 就立刻将其抽空引发“缺水爆音”，我们在 `setup_alsa` 中注入了核心防线：
-
-```c
-// 播放端蓄水池策略：
-snd_pcm_sw_params_set_start_threshold(handle, swparams, frames * 3);
-snd_pcm_sw_params_set_avail_min(handle, swparams, frames);
-```
-
-**深度解析**：`start_threshold` 强制要求内核引擎在底层硬件 DMA 环形缓冲中**至少积攒够 3 个周期 (60ms)** 的数据后，才允许真正驱动 DAC 发声。这种“先蓄水后开闸”的做法，彻底平滑了启动阶段的调度抖动。
-
----
-
-## 5. 优雅注销与僵尸进程防御 (Graceful Teardown)
-
-嵌入式系统对资源泄漏极度敏感。如果进程异常退出导致 DSP 侧未能释放，或 ALSA 句柄未关闭，下一次启动必将面临硬件死锁。
-
-```mermaid
-sequenceDiagram
-    participant OS as Linux (Enter 键)
-    participant Main as ARM Main Thread
-    participant Threads as ARM Record/Play Threads
-    participant DSP as DSP Server Thread
-
-    OS->>Main: 触发注销信号 (g_running = 0)
-    Main->>Threads: snd_pcm_drop() 强行击穿底层 IO 阻塞
-    Main->>Threads: sem_post() 解除幽灵锁死
-    Threads-->>Main: 子线程脱离循环安全退出 (pthread_join)
-
-    Main->>DSP: [挥手 1] 发送 APP_CMD_SHUTDOWN
-    Note over DSP: 收到指令，跳出内部算法死循环
-    DSP-->>Main: [挥手 2] 发送 APP_CMD_SHUTDOWN_ACK
-
-    Main->>Main: [挥手 3/4] 注销 Notify 回调，释放共享内存池
-    Note over Main,OS: 进程安全终结，无任何僵尸资源泄露
-```
-
-**防御性析构流程 (`App_delete`)**：
-
-1. **击穿内核阻塞**：调用 `snd_pcm_drop(handle)`，将卡在 Linux 内核态苦等 DMA 数据的音频线程瞬间唤醒。
-2. **信号量自解**：调用 `sem_post` 解开 `empty_in` 与 `full_out` 上的幽灵锁死，让子线程安全退出 `while(g_running)` 循环。
-3. **跨核挥手 (SHUTDOWN)**：向 DSP 发出 `APP_CMD_SHUTDOWN`。DSP 收到后跳出其内部的死循环，执行清理，并向 ARM 传回 `APP_CMD_SHUTDOWN_ACK` 确认。
-4. **资源核销**：收到 ACK 后，ARM 主线程才正式注销 IPC 回调，调用 `Memory_free` 归还共享内存给操作系统。
+1. ARM 调用 `snd_pcm_drop` 打断阻塞中的 ALSA 读写。
+2. ARM 调用 `sem_post` 唤醒录制/播放线程，线程退出循环。
+3. ARM 发送 `APP_CMD_SHUTDOWN`，DSP 收到后退出处理循环并回复 `APP_CMD_SHUTDOWN_ACK`。
+4. ARM 注销 Notify 回调，释放共享内存与信号量。

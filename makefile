@@ -55,7 +55,7 @@ ifeq (install,$(MAKECMDGOALS))
 ifeq (,$(EXEC_DIR))
 EXEC_DIR=$(CURDIR)/install
 endif
-override EXEC_DIR:=$(EXEC_DIR)/test
+override EXEC_DIR:=$(EXEC_DIR)/DM8168_Speech_Signal_Processing
 endif
 
 SLAVELOADER=$(SYSLINK_INSTALL_DIR)/packages/ti/syslink/bin

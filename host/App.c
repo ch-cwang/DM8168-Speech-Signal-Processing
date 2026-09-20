@@ -77,11 +77,9 @@ void *thread_play(void *arg);
  */
 int setup_alsa(snd_pcm_t **handle, snd_pcm_stream_t stream) {
   snd_pcm_hw_params_t
-      *params; // 声明硬件参数结构体指针，用于配置采样率、位深、物理通道等[cite:
-               // 2]
+      *params; // 声明硬件参数结构体指针，用于配置采样率、位深、物理通道等
   snd_pcm_sw_params_t *
-      swparams; // 声明软件参数结构体指针，用于配置内核层面的触发阈值、水位线等流控策略[cite:
-                // 2]
+      swparams; // 声明软件参数结构体指针，用于配置内核层面的触发阈值、水位线等流控策略
 
   /* 核心音质定义 */
   unsigned int val =

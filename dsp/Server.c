@@ -16,8 +16,10 @@
 #include "../shared/AppCommon.h"
 #include "../shared/SystemCfg.h"
 #include "Server.h"
+#include "Hrir.h"
 
 #define QUEUESIZE 8
+#define HRIR_HIST (HRIR_LEN - 1)
 
 /**
  * @brief Control command queue (Receives non-business commands like Shutdown from Host)
@@ -71,6 +73,73 @@ static Server_Module Module;
 
 /* 全局运行标志位，设为 0 时，DSP 主任务将跳出死循环，走向正常释放流程 */
 static volatile Int g_running = 1;
+
+/* ===================== 空间音效处理（Q15 定点 + 流式 FIR） ===================== */
+
+/*
+ * 状态与工作缓冲均为静态存储，避免占用 Task 栈（Dsp.cfg 里 Task 栈只有 4KB）。
+ * 历史缓冲保存上一块末尾 HRIR_HIST 个样本，即流式卷积的“重叠”部分。
+ */
+static short hist_L[HRIR_HIST];
+static short hist_R[HRIR_HIST];
+static short cur_L[PERIOD_FRAMES];
+static short cur_R[PERIOD_FRAMES];
+static short out_L[PERIOD_FRAMES];
+static short out_R[PERIOD_FRAMES];
+
+/* Q30 -> Q15 饱和截断（先右移 15 位，再做 int16 饱和） */
+static short sat16(long long acc) {
+  long long q = acc >> 15;
+  if (q > 32767) return 32767;
+  if (q < -32768) return -32768;
+  return (short)q;
+}
+
+/*
+ * 流式 FIR：对单声道做「历史 + 当前块」的卷积，输出长度与当前块相同。
+ *   cur  : 当前块的该声道样本（PERIOD_FRAMES 个，Q15）
+ *   h    : HRIR 系数（HRIR_LEN 个，Q15，自然序）
+ *   out  : 输出（PERIOD_FRAMES 个，Q15）
+ *   hist : 历史缓冲（HRIR_HIST 个，处理后被更新）
+ */
+static void fir_stream(const short *cur, const short *h,
+                       short *out, short *hist) {
+  int j, k;
+  for (j = 0; j < PERIOD_FRAMES; j++) {
+    long long acc = 0;
+    for (k = 0; k < HRIR_LEN; k++) {
+      int d = j - k;                 /* 卷积延迟，d < 0 表示取历史 */
+      long long x = (d >= 0) ? (long long)cur[d]
+                             : (long long)hist[d + HRIR_HIST];
+      acc += (long long)h[k] * x;    /* Q15 x Q15 = Q30，64 位累加防溢出 */
+    }
+    out[j] = sat16(acc);             /* Q30 -> Q15 饱和 */
+  }
+  /* 更新历史：保留当前块末尾 HRIR_HIST 个样本，供下一块使用 */
+  memcpy(hist, cur + (PERIOD_FRAMES - HRIR_HIST),
+         HRIR_HIST * sizeof(short));
+}
+
+/*
+ * 空间音效处理：左右声道分离 -> 分别与左右 HRIR 卷积 -> 合并。
+ *   in  : 交织立体声输入（L R L R ...，共 PERIOD_FRAMES 帧）
+ *   out : 交织立体声输出
+ */
+static void process_spatial(const short *in, short *out) {
+  int j;
+  for (j = 0; j < PERIOD_FRAMES; j++) {
+    cur_L[j] = in[2 * j];
+    cur_R[j] = in[2 * j + 1];
+  }
+  fir_stream(cur_L, hrir_L, out_L, hist_L);
+  fir_stream(cur_R, hrir_R, out_R, hist_R);
+  for (j = 0; j < PERIOD_FRAMES; j++) {
+    out[2 * j]     = out_L[j];
+    out[2 * j + 1] = out_R[j];
+  }
+}
+
+/* ============================================================================= */
 
 static UInt32 Server_waitForEvent(Event_Queue *eventQueue);
 static Void Server_notifyCB(UInt16 procId, UInt16 lineId, UInt32 eventId,
@@ -190,9 +259,9 @@ Int Server_exec() {
     Module.rx_q_tail = (Module.rx_q_tail + 1) % INDEX_Q_SIZE;
     char *write_ptr = rx_base + (active_tx_idx * BLOCK_SIZE);
 
-    /* === 你的音频算法核心接驳点 === */
-    memcpy(write_ptr, read_ptr, BLOCK_SIZE); /* 当前为透传拷贝 */
-    /* ============================== */
+    /* === 空间音效处理：左右声道分离 -> HRIR 卷积 -> 合并（替换原 memcpy 直通） === */
+    process_spatial((short *)read_ptr, (short *)write_ptr);
+    /* =============================================================== */
 
     /* 3. 双向触发底层硬件中断，通知 Host 认领数据 */
     /* 告诉 Host：这块录音我已经吸干了，你拿去重新录制 */
